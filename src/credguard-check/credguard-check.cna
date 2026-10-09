@@ -1,0 +1,52 @@
+#
+# Credential Guard Check BOF
+# Aggressor Script for Cobalt Strike
+#
+# Checks the status of Windows security features:
+# - Credential Guard
+# - HVCI (Hypervisor-protected Code Integrity)
+# - LSA Protection (RunAsPPL)
+# - VBS (Virtualization-Based Security)
+#
+
+alias credguard-check {
+    local('$barch $handle $data $args');
+
+    # Get beacon architecture
+    $barch = barch($1);
+
+    # Read appropriate BOF file based on architecture
+    if ($barch eq "x64") {
+        $handle = openf(script_resource("dist/credguard-check.x64.o"));
+    } else {
+        $handle = openf(script_resource("dist/credguard-check.x86.o"));
+    }
+
+    $data = readb($handle, -1);
+    closef($handle);
+
+    if (strlen($data) == 0) {
+        berror($1, "Could not read BOF file");
+        return;
+    }
+
+    # No arguments needed for this BOF
+    $args = bof_pack($1, "");
+
+    # Execute the BOF
+    btask($1, "Checking Windows security features (Credential Guard, HVCI, LSA Protection, VBS)");
+    beacon_inline_execute($1, $data, "go", $args);
+}
+
+beacon_command_register(
+    "credguard-check",
+    "Check Windows security features (Credential Guard, HVCI, LSA Protection, VBS)",
+    "Usage: credguard-check\n\n" .
+    "Checks the status of Windows security features by querying registry keys:\n" .
+    "  - Credential Guard (LsaCfgFlags)\n" .
+    "  - HVCI/Memory Integrity (HypervisorEnforcedCodeIntegrity)\n" .
+    "  - LSA Protection (RunAsPPL)\n" .
+    "  - VBS (Virtualization-Based Security)\n\n" .
+    "Example:\n" .
+    "  beacon> credguard-check\n"
+);

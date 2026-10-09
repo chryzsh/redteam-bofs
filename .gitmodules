@@ -1,0 +1,21 @@
+[submodule "external/cookie-monster"]
+	path = external/cookie-monster
+	url = https://github.com/chryzsh/cookie-monster
+[submodule "external/Kerbeus-BOF"]
+	path = external/Kerbeus-BOF
+	url = https://github.com/RalfHacker/Kerbeus-BOF
+[submodule "external/SQL-BOF"]
+	path = external/SQL-BOF
+	url = https://github.com/Tw1sm/SQL-BOF
+[submodule "external/OperatorsKit"]
+	path = external/OperatorsKit
+	url = https://github.com/chryzsh/OperatorsKit
+[submodule "external/PrivKit"]
+	path = external/PrivKit
+	url = https://github.com/mertdas/PrivKit
+[submodule "external/LNKgenerator-BOF"]
+	path = external/LNKgenerator-BOF
+	url = https://github.com/KingOfTheNOPs/LNKgenerator-BOF
+[submodule "external/BOF-PE"]
+	path = external/BOF-PE
+	url = https://github.com/NetSPI/BOF-PE

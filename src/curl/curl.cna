@@ -1,0 +1,59 @@
+# curl
+# A BOF implementation of curl for Cobalt Strike
+
+beacon_command_register(
+    "curl",
+    "Retrieve TLS certificate, response headers, and page title from a given URL (curl).",
+    "  - finger: Retrieves response headers, TLS certificate info (if HTTPS), and the HTML <title>.\n" .
+    "  - print: Fetches and prints the raw page content (basic curl).\n\n" .
+    "Usage:\n" .
+    "  curl <finger|print> <url> [--ua \"User-Agent\"]\n\n"
+);
+
+
+alias curl {
+    local('$bid @valid_opts %opts $opt_cnt $opt_ind $opt $value $barch $handle $data $args');
+
+    %opts["--ua"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0";
+
+    $bid = @_[0];
+    $opt_cnt = size(@_);
+    @valid_opts = @("--ua");
+    
+    if ($opt_cnt < 3) {
+        berror($bid, "Usage: curl <command> <url> [--ua \"User-Agent\"]");
+        return;
+    }
+    
+    %opts["command"] = @_ [1];
+    %opts["url"] = @_ [2];
+
+    for ($opt_ind = 3; $opt_ind < $opt_cnt; $opt_ind++) {
+        $opt = @_[$opt_ind];
+
+        $opt_ind++;
+        $value = iff($opt_ind >= $opt_cnt, $null, @_[$opt_ind]);
+
+        if ($opt !in @valid_opts) {
+            berror($bid, "$opt is not a valid option.");
+            return;
+        }
+        if ($value is $null || $value in @valid_opts) {
+            berror($bid, "Missing or invalid value for the $opt option.");
+            return;
+        }
+
+        %opts[$opt] = $value;
+    }
+
+
+    $barch = barch($bid);
+
+    $handle = openf(script_resource("curl." . $barch . ".o"));
+    $data = readb($handle, -1);
+    closef($handle);
+
+    $args = bof_pack($bid, "ZZZ", %opts["command"], %opts["url"], %opts["--ua"]);
+
+    beacon_inline_execute($bid, $data, "go", $args);
+}

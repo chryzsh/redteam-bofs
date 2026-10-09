@@ -1,0 +1,15 @@
+# Test executables
+*.exe
+
+# Distribution directory with compiled BOFs
+dist/
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Build artifacts
+*.log

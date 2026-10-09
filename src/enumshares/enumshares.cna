@@ -1,0 +1,63 @@
+# author REDMED-X
+
+beacon_command_register(
+	"enumshares", "List remote shares and their access level for a single host or a file of hostnames.",
+	"INFO:\nList remote shares and their access level. Supports two modes:\n" .
+	"  1. Inline hostname: enumerate shares on a single host.\n" .
+	"  2. File upload: enumerate shares on every host in a newline-separated file.\n\n" .
+	"USAGE:\n" .
+	"  enumshares <hostname>              # single host\n" .
+	"  enumshares <path to hostname file> # multi-host from file\n\n" .
+	"EXAMPLES:\n" .
+	"  enumshares DC01\n" .
+	"  enumshares 10.100.10.1\n" .
+	"  enumshares C:\\Users\\RTO\\Documents\\hostnames.txt\n\n");
+
+alias enumshares {
+    local('$bid $target $barch $handle $data $file $arg_data');
+
+    $bid = $1;
+    $target = $2;
+
+    if ($target eq "") {
+        berror($bid, "Usage: enumshares <hostname> or enumshares <path to hostnames file>");
+        return;
+    }
+
+    # Read in the right BOF file based on architecture
+    $barch = barch($bid);
+    if ($barch eq "x64") {
+        $handle = openf(script_resource("enumshares.x64.o"));
+    } else {
+        $handle = openf(script_resource("enumshares.x86.o"));
+    }
+    $data = readb($handle, -1);
+    closef($handle);
+
+    if (strlen($data) == 0) {
+        berror($bid, "Could not read BOF file");
+        return;
+    }
+
+    # Determine mode: if target is a file on the operator system, use file mode
+    if (-exists $target) {
+        $handle = openf($target);
+        $file = readb($handle, -1);
+        closef($handle);
+
+        if (strlen($file) == 0) {
+            berror($bid, "Could not read hostnames file or file is empty");
+            return;
+        }
+
+        # File mode: empty string arg + file blob
+        $arg_data = bof_pack($bid, "zb", "", $file);
+        btask($bid, "Tasked to enumerate remote shares from file: $target");
+    } else {
+        # Inline mode: hostname string arg + empty blob
+        $arg_data = bof_pack($bid, "zb", $target, "");
+        btask($bid, "Tasked to enumerate remote shares on: $target");
+    }
+
+    beacon_inline_execute($bid, $data, "go", $arg_data);
+}

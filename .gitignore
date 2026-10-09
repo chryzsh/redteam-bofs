@@ -1,0 +1,27 @@
+# Compiled executables (test builds)
+*.o
+*.exe
+
+# Build artifacts
+*.scanbuild.exe
+dist/
+src/dist/
+src/fake-windows-popup/build-*/
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.pyc
+
+# Local agent tooling
+.claude/

@@ -1,0 +1,29 @@
+# # listpipes.cna — load BOF from script resources and inline-execute
+
+sub _read_bof_resource {
+    local('$bid $arch $rel $abs $h $bytes');
+    $bid  = $1;
+    $arch = barch($bid);                      # "x86" or "x64"
+    $rel  = "listpipes." . $arch . ".o";
+    $abs  = script_resource($rel);
+    if ($abs is $null) { berror($bid, "missing resource: " . $rel); return $null; }
+    $h = openf($abs);
+    if ($h is $null) { berror($bid, "open failed: " . $abs); return $null; }
+    $bytes = readb($h, -1);
+    closef($h);
+    return $bytes;
+}
+
+alias listpipes {
+    local('$bof');
+    $bof = _read_bof_resource($1);
+    if (isnull($bof) || strlen($bof) == 0) { berror($1, "empty BOF"); return; }
+    btask($1, "List Named Pipes (BOF)", "DS0023");
+    beacon_inline_execute($1, $bof, "go", $null);   # no args
+}
+
+beacon_command_register(
+  "listpipes",
+  "Lists local named pipes via BOF (NtQueryDirectoryFile).",
+  "Usage: listpipes"
+);

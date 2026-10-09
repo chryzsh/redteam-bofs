@@ -1,0 +1,243 @@
+#
+# Recursive File Lister BOF - Cobalt Strike Aggressor Script
+#
+# Recursively enumerate files in a directory with wildcard pattern support.
+# Streams output as files are discovered and provides summary statistics.
+#
+
+beacon_command_register(
+    "lsfiles",
+    "Recursively enumerate files with wildcard filtering in paths and filenames",
+    "Synopsis: lsfiles <path> [options]\n\n" .
+    "Recursively enumerate files in a directory with wildcard pattern support.\n" .
+    "Supports wildcards in both directory paths and filename patterns.\n" .
+    "Streams output as files are discovered and provides summary statistics.\n\n" .
+    "Arguments:\n" .
+    "  <path>                Target directory path. Supports wildcards!\n" .
+    "                        Examples: C:\\Users, C:\\Users\\*, C:\\Windows\\System32\n\n" .
+    "Options:\n" .
+    "  --recursive, -r       Recurse into subdirectories (default: current dir only)\n" .
+    "  --pattern <pattern>   Wildcard pattern to filter files (e.g., *.exe, *.log, *.txt)\n" .
+    "                        Default: * (all files)\n" .
+    "  --exclude <pattern>   Exclude files matching pattern. Can be used multiple times.\n" .
+    "                        Examples: --exclude *.tmp --exclude *.log\n" .
+    "  --exclude-path <pat>  Exclude full paths matching pattern and prune matching directories.\n" .
+    "                        Example: --exclude-path *\\\\.git\\\\*\n" .
+    "  --max-depth <depth>   Maximum recursion depth (-1 for unlimited). Implies -r.\n" .
+    "                        Default: 0 (current directory only)\n" .
+    "  --max-results <count> Maximum number of results to return. Use -1 for unlimited.\n" .
+    "                        Default: 1000\n" .
+    "  --include-dirs        Include directory entries in output\n" .
+    "  --dirs                Alias for --include-dirs\n" .
+    "  --date-filter <date>  Filter files by modification date\n" .
+    "                        Formats: YYYY, YYYY-MM, or YYYY-MM-DD\n" .
+    "                        Examples: 2025, 2025-11, 2025-11-13\n" .
+    "  --min-size <bytes>    Minimum file size in bytes. Use -1 for no minimum.\n" .
+    "                        Default: -1 (no minimum)\n" .
+    "  --max-size <bytes>    Maximum file size in bytes. Use -1 for no maximum.\n" .
+    "                        Default: -1 (no maximum)\n" .
+    "  --suppress-errors     Suppress error messages for access denied errors\n\n" .
+    "Path wildcards:\n" .
+    "  *   - Matches any directory name (e.g., C:\\Users\\* searches all user directories)\n" .
+    "  ?   - Matches any single character in directory name\n" .
+    "  Examples: C:\\Users\\*, C:\\Windows\\System??\\, C:\\*\\Temp\n\n" .
+    "Filename pattern wildcards:\n" .
+    "  *   - Matches any sequence of characters\n" .
+    "  ?   - Matches any single character\n" .
+    "  Examples: *.exe, test*.log, file?.txt, *report*.pdf\n\n" .
+    "Examples:\n" .
+    "  lsfiles C:\\Users\\target\\Desktop\n" .
+    "  lsfiles C:\\Users -r --pattern *.zip\n" .
+    "  lsfiles C:\\Users\\* --pattern *.zip\n" .
+    "  lsfiles C:\\Windows -r --pattern *.exe\n" .
+    "  lsfiles C:\\Temp --pattern *.log --suppress-errors\n" .
+    "  lsfiles \"C:\\Program Files\" --pattern *.dll --max-depth 2\n" .
+    "  lsfiles C:\\Users\\*\\Downloads --pattern *.exe --date-filter 2025\n" .
+    "  lsfiles C:\\Windows\\*\\config --pattern *.ini --date-filter 2025-11\n" .
+    "  lsfiles C:\\Temp --pattern * --date-filter 2025-11-13\n" .
+    "  lsfiles C:\\Users --pattern *.zip --min-size 1048576\n" .
+    "  lsfiles C:\\Temp --pattern *.log --max-size 1024\n" .
+    "  lsfiles \\\\test\\dept --include-dirs\n\n" .
+    "Notes:\n" .
+    "  - BOF streams output as files are discovered (not batch mode)\n" .
+    "  - Path wildcards are expanded before recursive enumeration\n" .
+    "  - File timestamps are converted to local system time\n" .
+    "  - Summary includes total files found, optional directory count, total size, and error count\n" .
+    "  - Large directories may produce significant output\n" .
+    "  - Use --suppress-errors to reduce noise in heavily restricted areas\n"
+);
+
+alias lsfiles {
+    local('$bof $args $path $pattern $excludePatterns $excludePathPatterns @excludeList @excludePathList $suppressErrors $maxDepth $maxResults $includeDirs $dateFilter $minSize $maxSize $recursive $depthExplicit $i');
+
+    # Validate we have at least the path argument
+    if (size(@_) < 2) {
+        berror($1, "Usage: lsfiles <path> [-r] [--pattern <pattern>] [--exclude <pattern>] [--exclude-path <path-pattern>] [--max-depth <depth>] [--max-results <count>] [--include-dirs] [--date-filter <date>] [--min-size <bytes>] [--max-size <bytes>] [--suppress-errors]");
+        berror($1, "Example: lsfiles C:\\Users -r --pattern *.exe --exclude *.tmp --exclude-path *\\\\.git\\\\* --max-depth 2 --max-results 5000 --include-dirs --date-filter 2025 --min-size 1048576");
+        return;
+    }
+
+    # Initialize default values
+    $path = @_[1];
+    $pattern = "*";
+    @excludeList = @();
+    @excludePathList = @();
+    $suppressErrors = 0;
+    $maxDepth = 0;
+    $recursive = 0;
+    $depthExplicit = 0;
+    $maxResults = 1000;
+    $includeDirs = 0;
+    $dateFilter = "";
+    $minSize = -1;
+    $maxSize = -1;
+
+    # Parse optional arguments
+    for ($i = 2; $i < size(@_); $i++) {
+        if (@_[$i] eq "--pattern" || @_[$i] eq "-p") {
+            $i++;
+            if ($i >= size(@_)) {
+                berror($1, "--pattern requires a value");
+                return;
+            }
+            $pattern = @_[$i];
+        }
+        else if (@_[$i] eq "--exclude" || @_[$i] eq "-e") {
+            $i++;
+            if ($i >= size(@_)) {
+                berror($1, "--exclude requires a value");
+                return;
+            }
+            add(@excludeList, @_[$i]);
+        }
+        else if (@_[$i] eq "--exclude-path") {
+            $i++;
+            if ($i >= size(@_)) {
+                berror($1, "--exclude-path requires a value");
+                return;
+            }
+            add(@excludePathList, @_[$i]);
+        }
+        else if (@_[$i] eq "--recursive" || @_[$i] eq "-r") {
+            $recursive = 1;
+        }
+        else if (@_[$i] eq "--max-depth" || @_[$i] eq "-d") {
+            $i++;
+            if ($i >= size(@_)) {
+                berror($1, "--max-depth requires a value");
+                return;
+            }
+            $maxDepth = @_[$i];
+            $depthExplicit = 1;
+        }
+        else if (@_[$i] eq "--max-results" || @_[$i] eq "-mr") {
+            $i++;
+            if ($i >= size(@_)) {
+                berror($1, "--max-results requires a value");
+                return;
+            }
+            $maxResults = @_[$i];
+        }
+        else if (@_[$i] eq "--include-dirs" || @_[$i] eq "--dirs") {
+            $includeDirs = 1;
+        }
+        else if (@_[$i] eq "--date-filter" || @_[$i] eq "-df") {
+            $i++;
+            if ($i >= size(@_)) {
+                berror($1, "--date-filter requires a value");
+                return;
+            }
+            $dateFilter = @_[$i];
+        }
+        else if (@_[$i] eq "--min-size" || @_[$i] eq "-mins") {
+            $i++;
+            if ($i >= size(@_)) {
+                berror($1, "--min-size requires a value");
+                return;
+            }
+            $minSize = @_[$i];
+        }
+        else if (@_[$i] eq "--max-size" || @_[$i] eq "-maxs") {
+            $i++;
+            if ($i >= size(@_)) {
+                berror($1, "--max-size requires a value");
+                return;
+            }
+            $maxSize = @_[$i];
+        }
+        else if (@_[$i] eq "--suppress-errors" || @_[$i] eq "-s") {
+            $suppressErrors = 1;
+        }
+        else {
+            berror($1, "Unknown option: " . @_[$i]);
+            return;
+        }
+    }
+
+    # Validate inputs
+    if (strlen($path) == 0) {
+        berror($1, "Path cannot be empty");
+        return;
+    }
+
+    if (strlen($pattern) == 0) {
+        berror($1, "Pattern cannot be empty. Use '*' for all files.");
+        return;
+    }
+
+    # Convert maxDepth to integer and validate
+    $maxDepth = int($maxDepth);
+    if ($maxDepth < -1) {
+        berror($1, "Invalid max-depth: " . $maxDepth . ". Must be -1 (unlimited) or >= 0.");
+        return;
+    }
+
+    # Resolve recursion: -d implies recursion; -r without -d means unlimited
+    if ($depthExplicit == 0 && $recursive == 1) {
+        $maxDepth = -1;
+    }
+
+    # Convert maxResults to integer and validate
+    $maxResults = int($maxResults);
+    if ($maxResults < -1) {
+        berror($1, "Invalid max-results: " . $maxResults . ". Must be -1 (unlimited) or >= 0.");
+        return;
+    }
+
+    # Convert minSize to integer and validate
+    $minSize = int($minSize);
+    if ($minSize < -1) {
+        berror($1, "Invalid min-size: " . $minSize . ". Must be -1 (no minimum) or >= 0.");
+        return;
+    }
+
+    # Convert maxSize to integer and validate
+    $maxSize = int($maxSize);
+    if ($maxSize < -1) {
+        berror($1, "Invalid max-size: " . $maxSize . ". Must be -1 (no maximum) or >= 0.");
+        return;
+    }
+
+    # Build pipe-delimited exclude patterns string
+    $excludePatterns = "";
+    if (size(@excludeList) > 0) {
+        $excludePatterns = join("|", @excludeList);
+    }
+    $excludePathPatterns = "";
+    if (size(@excludePathList) > 0) {
+        $excludePathPatterns = join("|", @excludePathList);
+    }
+
+    # Load and execute BOF
+    $bof = script_resource("lsfiles." . barch($1) . ".o");
+    if (!-exists $bof) {
+        berror($1, "BOF file not found: " . $bof);
+        return;
+    }
+
+    # Pack arguments: ZZZZiiiiZii (path, pattern, excludePatterns, excludePathPatterns, suppressErrors, maxDepth, maxResults, includeDirs, dateFilter, minSize, maxSize)
+    $args = bof_pack($1, "ZZZZiiiiZii", $path, $pattern, $excludePatterns, $excludePathPatterns, $suppressErrors, $maxDepth, $maxResults, $includeDirs, $dateFilter, $minSize, $maxSize);
+
+    # Execute BOF
+    beacon_inline_execute($1, readbof($bof), "go", $args);
+}
