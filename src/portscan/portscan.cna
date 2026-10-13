@@ -1,0 +1,61 @@
+beacon_command_register(
+	"portscan", "TCP connect scan of one host or a file of hosts.",
+	"INFO:\nNon-blocking TCP connect scan, 128 connections in flight. Connections are closed with RST.\n" .
+	"Prints host:port for every open port.\n\n" .
+	"Each line of a hosts file can be a hostname, an IP, or nslookup-file output (hostname<TAB>ip).\n" .
+	"When a line has an IP, it is used and the hostname is not resolved again.\n\n" .
+	"USAGE:\n" .
+	"  portscan <hostname|ip> <ports> [timeout ms]\n" .
+	"  portscan <path to hosts file> <ports> [timeout ms]\n\n" .
+	"Ports are comma-separated and can include ranges. Default timeout is 1000 ms.\n\n" .
+	"EXAMPLES:\n" .
+	"  portscan DC01 445,3389\n" .
+	"  portscan 10.0.0.5 1-1024 500\n" .
+	"  portscan /tmp/resolved.txt 445\n\n");
+
+alias portscan {
+    local('$bid $target $ports $timeout $barch $handle $data $file $arg_data');
+
+    $bid = $1;
+    $target = $2;
+    $ports = $3;
+    $timeout = $4;
+
+    if ($target eq "" || $ports eq "") {
+        berror($bid, "Usage: portscan <hostname|ip|path to hosts file> <ports> [timeout ms]");
+        return;
+    }
+    if ($timeout eq "") {
+        $timeout = 0;
+    }
+
+    $barch = barch($bid);
+    $handle = openf(script_resource("portscan." . $barch . ".o"));
+    $data = readb($handle, -1);
+    closef($handle);
+
+    if (strlen($data) == 0) {
+        berror($bid, "Could not read BOF file");
+        return;
+    }
+
+    # File mode if the target is a file on the operator system
+    if (-exists $target) {
+        $handle = openf($target);
+        $file = readb($handle, -1);
+        closef($handle);
+
+        if (strlen($file) == 0) {
+            berror($bid, "Could not read hosts file or file is empty");
+            return;
+        }
+
+        $arg_data = bof_pack($bid, "zbzi", "", $file, $ports, $timeout);
+        btask($bid, "Tasked to scan ports $ports on hosts from file: $target");
+    } else {
+        $arg_data = bof_pack($bid, "zbzi", $target, "", $ports, $timeout);
+        btask($bid, "Tasked to scan ports $ports on: $target");
+    }
+
+    beacon_inline_execute($bid, $data, "go", $arg_data);
+}
