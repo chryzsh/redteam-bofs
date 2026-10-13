@@ -1,0 +1,46 @@
+beacon_command_register(
+	"nslookup-file", "Resolve a file of hostnames to IPv4 addresses with parallel DNS queries.",
+	"INFO:\nResolve every hostname in a newline-separated file. Queries run in parallel (64 at a time).\n" .
+	"Prints one line per resolved host: hostname<TAB>ip[,ip...]. Hosts that do not resolve are counted, not printed.\n" .
+	"LLMNR and NetBIOS fallback are disabled. Requires Windows 8 / Server 2012 or later.\n\n" .
+	"USAGE:\n" .
+	"  nslookup-file <path to hostname file> [dns server ip]\n\n" .
+	"EXAMPLES:\n" .
+	"  nslookup-file /tmp/computers.txt\n" .
+	"  nslookup-file /tmp/computers.txt 10.0.0.10\n\n");
+
+alias nslookup-file {
+    local('$bid $path $server $barch $handle $data $file $arg_data');
+
+    $bid = $1;
+    $path = $2;
+    $server = $3;
+
+    if ($path eq "" || !-exists $path) {
+        berror($bid, "Usage: nslookup-file <path to hostnames file> [dns server ip]");
+        return;
+    }
+
+    $barch = barch($bid);
+    $handle = openf(script_resource("nslookup-file." . $barch . ".o"));
+    $data = readb($handle, -1);
+    closef($handle);
+
+    if (strlen($data) == 0) {
+        berror($bid, "Could not read BOF file");
+        return;
+    }
+
+    $handle = openf($path);
+    $file = readb($handle, -1);
+    closef($handle);
+
+    if (strlen($file) == 0) {
+        berror($bid, "Could not read hostnames file or file is empty");
+        return;
+    }
+
+    $arg_data = bof_pack($bid, "bz", $file, $server);
+    btask($bid, "Tasked to resolve hostnames from file: $path");
+    beacon_inline_execute($bid, $data, "go", $arg_data);
+}
