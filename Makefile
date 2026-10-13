@@ -29,12 +29,12 @@ BOFS := src/adduser-domaingroup \
         src/listpipes \
         src/lsfiles \
         src/nslookup-file \
-        src/portscan \
         src/removeuser-domaingroup \
         src/removeuser-localgroup \
         src/sccm-disk \
         src/sccm-local-recon \
-        src/sccm-wmi
+        src/sccm-wmi \
+        src/tcpscan
 
 # Linked BOF-PE projects (x64 PE output, not COFF objects)
 BOF_PES := src/fake-windows-popup

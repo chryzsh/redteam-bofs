@@ -7,7 +7,7 @@
 
 # ---- config ----
 SRC            ?= entry.c
-OUT_BASENAME   ?= portscan
+OUT_BASENAME   ?= tcpscan
 
 MINGW_PREFIX64 ?= x86_64-w64-mingw32
 MINGW_PREFIX32 ?= i686-w64-mingw32

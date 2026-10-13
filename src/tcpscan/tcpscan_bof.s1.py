@@ -4,15 +4,15 @@ from outflank_stage1.task.base_bof_task import BaseBOFTask
 from outflank_stage1.task.enums import BOFArgumentEncoding
 
 
-class PortscanBOF(BaseBOFTask):
-    """Single-host TCP connect scan. Use 'portscan-file' for multi-host file upload."""
+class TcpscanBOF(BaseBOFTask):
+    """Single-host TCP connect scan. Use 'tcpscan-file' for multi-host file upload."""
 
     def __init__(self):
-        super().__init__("portscan", base_binary_name="portscan")
+        super().__init__("tcpscan", base_binary_name="tcpscan")
 
         self.parser.description = (
             "TCP connect scan of a single host. Prints host:port for every open port. "
-            "For multi-host file upload, use portscan-file."
+            "For multi-host file upload, use tcpscan-file."
         )
 
         self.parser.add_argument(
@@ -33,8 +33,8 @@ class PortscanBOF(BaseBOFTask):
 
         self.parser.epilog = (
             "Example usage:\n"
-            "  portscan DC01 445,3389\n"
-            "  portscan 10.0.0.5 1-1024 500\n"
+            "  tcpscan DC01 445,3389\n"
+            "  tcpscan 10.0.0.5 1-1024 500\n"
         )
 
     def _encode_arguments_bof(self, arguments: List[str]) -> List[Tuple[BOFArgumentEncoding, str]]:
@@ -49,7 +49,7 @@ class PortscanBOF(BaseBOFTask):
     def run(self, arguments: List[str]):
         parser_arguments = self.parser.parse_args(arguments)
         self.append_response(
-            f"portscan BOF - Scanning {parser_arguments.host} on {parser_arguments.ports}...\n"
+            f"tcpscan BOF - Scanning {parser_arguments.host} on {parser_arguments.ports}...\n"
         )
         super().run(arguments)
 

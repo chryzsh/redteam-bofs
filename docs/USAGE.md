@@ -29,13 +29,13 @@ This document provides usage information for all BOFs in the repository. Each se
 - [listpipes](#listpipes)
 - [lsfiles](#lsfiles)
 - [nslookup-file](#nslookup-file)
-- [portscan](#portscan)
-- [portscan-file](#portscan-file)
 - [removeuser-domaingroup](#removeuser-domaingroup)
 - [removeuser-localgroup](#removeuser-localgroup)
 - [sccm-wmi](#sccm-wmi)
 - [sccm-disk](#sccm-disk)
 - [sccm-local-recon](#sccm-local-recon)
+- [tcpscan](#tcpscan)
+- [tcpscan-file](#tcpscan-file)
 
 ### External BOF Scripts
 - [adduser](#adduser) (CS-Remote-OPs-BOF)
@@ -1048,76 +1048,6 @@ nslookup-file /tmp/computers.txt
 
 ---
 
-## portscan
-
-TCP connect scan of a single host. Up to 128 connections in flight, closed with RST. This is not a SYN scan: open ports see a full handshake.
-
-### Syntax
-```
-portscan <host> <ports> [timeout ms]
-```
-
-### Arguments
-| Argument | Required | Description |
-|----------|----------|-------------|
-| `host` | Yes | Hostname or IP to scan |
-| `ports` | Yes | Comma-separated ports, ranges allowed (`445`, `80,443`, `1-1024,8000-8100`) |
-| `timeout ms` | No | Connect timeout in milliseconds. Default 1000. |
-
-### Output
-One line per open port, as `host:port`, then a summary line with open, closed (RST), filtered (no answer before timeout), and failed counts.
-
-### Examples
-```bash
-portscan DC01 445,3389
-portscan 10.0.0.5 1-1024 500
-```
-
-### CNA (Cobalt Strike)
-The CNA script auto-detects mode: if the first argument is an existing file path, it reads hosts from the file; otherwise it treats it as a single host.
-```bash
-portscan DC01 445
-portscan /tmp/resolved.txt 445
-```
-
----
-
-## portscan-file
-
-TCP connect scan of every host in an uploaded hosts file (OC2). Same scanner as [portscan](#portscan).
-
-### Syntax
-```
-portscan-file <ports> [timeout ms]
-```
-Upload a newline-separated hosts file via the OC2 GUI file dialog.
-
-### Hosts File Format
-Each line can be a hostname, an IP, or `nslookup-file` output (`hostname<TAB>ip[,ip...]`). When a line has an IP, the first IP is used and the hostname is not resolved again.
-
-### Output
-Same as [portscan](#portscan).
-
-### Examples
-```bash
-# OC2: run command, then upload hosts file via GUI
-portscan-file 445
-portscan-file 80,443 500
-```
-
-### Host discovery pipeline
-```bash
-# 1. Export computer dNSHostName values from AD to computers.txt
-# 2. Resolve them; save the output as resolved.txt
-nslookup-file                 # upload computers.txt
-# 3. Scan SMB; save the output, strip ":445", save as smb.txt
-portscan-file 445             # upload resolved.txt
-# 4. Enumerate shares
-enumshares-file               # upload smb.txt
-```
-
----
-
 ## removeuser-domaingroup
 
 Remove a domain user from a domain **global or universal** group via `NetGroupDelUser`. The target must be a domain controller for the user's domain. For domain-local groups, use `removeuser-localgroup --computer \\<dc>` instead.
@@ -1262,6 +1192,76 @@ sccm-local-recon
 - Runs in the current user's context (no `SYSTEM`, no DPAPI).
 - Log scanning reads files up to 8 MiB each from `C:\Windows\CCM\Logs`.
 - For credential recovery use `sccm-wmi` (CRED-3) or `sccm-disk` (CRED-4).
+
+---
+
+## tcpscan
+
+TCP connect scan of a single host. Up to 128 connections in flight, closed with RST. This is not a SYN scan: open ports see a full handshake.
+
+### Syntax
+```
+tcpscan <host> <ports> [timeout ms]
+```
+
+### Arguments
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `host` | Yes | Hostname or IP to scan |
+| `ports` | Yes | Comma-separated ports, ranges allowed (`445`, `80,443`, `1-1024,8000-8100`) |
+| `timeout ms` | No | Connect timeout in milliseconds. Default 1000. |
+
+### Output
+One line per open port, as `host:port`, then a summary line with open, closed (RST), filtered (no answer before timeout), and failed counts.
+
+### Examples
+```bash
+tcpscan DC01 445,3389
+tcpscan 10.0.0.5 1-1024 500
+```
+
+### CNA (Cobalt Strike)
+The CNA script auto-detects mode: if the first argument is an existing file path, it reads hosts from the file; otherwise it treats it as a single host.
+```bash
+tcpscan DC01 445
+tcpscan /tmp/resolved.txt 445
+```
+
+---
+
+## tcpscan-file
+
+TCP connect scan of every host in an uploaded hosts file (OC2). Same scanner as [tcpscan](#tcpscan).
+
+### Syntax
+```
+tcpscan-file <ports> [timeout ms]
+```
+Upload a newline-separated hosts file via the OC2 GUI file dialog.
+
+### Hosts File Format
+Each line can be a hostname, an IP, or `nslookup-file` output (`hostname<TAB>ip[,ip...]`). When a line has an IP, the first IP is used and the hostname is not resolved again.
+
+### Output
+Same as [tcpscan](#tcpscan).
+
+### Examples
+```bash
+# OC2: run command, then upload hosts file via GUI
+tcpscan-file 445
+tcpscan-file 80,443 500
+```
+
+### Host discovery pipeline
+```bash
+# 1. Export computer dNSHostName values from AD to computers.txt
+# 2. Resolve them; save the output as resolved.txt
+nslookup-file                 # upload computers.txt
+# 3. Scan SMB; save the output, strip ":445", save as smb.txt
+tcpscan-file 445             # upload resolved.txt
+# 4. Enumerate shares
+enumshares-file               # upload smb.txt
+```
 
 ---
 

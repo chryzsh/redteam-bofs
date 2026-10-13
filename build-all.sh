@@ -43,12 +43,12 @@ BOFS=(
     "src/listpipes"
     "src/lsfiles"
     "src/nslookup-file"
-    "src/portscan"
     "src/removeuser-domaingroup"
     "src/removeuser-localgroup"
     "src/sccm-disk"
     "src/sccm-local-recon"
     "src/sccm-wmi"
+    "src/tcpscan"
 )
 
 # Linked x64 BOF-PE projects - keep in sync with root Makefile

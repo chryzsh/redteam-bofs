@@ -48,7 +48,7 @@ fileserver.example.local	10.0.0.30,10.0.1.30
 [+] Done. 2 resolved, 1 not found, 0 timed out, 0 failed
 ```
 
-The output can go straight into `portscan-file`, which uses the IP from each line and skips a second lookup.
+The output can go straight into `tcpscan-file`, which uses the IP from each line and skips a second lookup.
 
 ## Build
 

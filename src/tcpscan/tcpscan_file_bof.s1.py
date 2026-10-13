@@ -5,15 +5,15 @@ from outflank_stage1.task.enums import BOFArgumentEncoding
 from outflank_stage1.task.exceptions import TaskInvalidArgumentsException
 
 
-class PortscanFileBOF(BaseBOFTask):
+class TcpscanFileBOF(BaseBOFTask):
     """Multi-host TCP connect scan via uploaded hosts file."""
 
     def __init__(self):
-        super().__init__("portscan-file", base_binary_name="portscan")
+        super().__init__("tcpscan-file", base_binary_name="tcpscan")
 
         self.parser.description = (
             "TCP connect scan of every host in an uploaded file. Prints host:port for every open port. "
-            "For single-host mode, use portscan."
+            "For single-host mode, use tcpscan."
         )
 
         self.parser.add_argument(
@@ -32,8 +32,8 @@ class PortscanFileBOF(BaseBOFTask):
             "Each line of the hosts file can be a hostname, an IP, or nslookup-file output (hostname<TAB>ip).\n"
             "When a line has an IP, it is used and the hostname is not resolved again.\n\n"
             "Example usage:\n"
-            "  portscan-file 445          (then upload hosts file)\n"
-            "  portscan-file 80,443 500\n"
+            "  tcpscan-file 445          (then upload hosts file)\n"
+            "  tcpscan-file 80,443 500\n"
         )
 
     def validate_files(self, arguments: List[str]):
@@ -62,13 +62,13 @@ class PortscanFileBOF(BaseBOFTask):
         hosts_file = self.get_file_by_name("hosts_file")
         uploaded_name = getattr(hosts_file, "original_name", "uploaded hosts file")
         self.append_response(
-            f"portscan BOF - Scanning {parser_arguments.ports} on hosts from {uploaded_name}...\n"
+            f"tcpscan BOF - Scanning {parser_arguments.ports} on hosts from {uploaded_name}...\n"
         )
         super().run(arguments)
 
     def get_gui_elements(self) -> Optional[Dict]:
         return {
-            "title": "Portscan (File)",
+            "title": "Tcpscan (File)",
             "desc": "TCP connect scan of every host in a file.",
             "elements": [
                 {

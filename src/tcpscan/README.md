@@ -1,10 +1,10 @@
-# portscan
+# tcpscan
 
 TCP connect scan of one host or a file of hosts.
 
 ## Overview
 
-`portscan` opens non-blocking TCP connections and waits for them with `select()`. Up to 128 connections are in flight at once. A port is:
+`tcpscan` opens non-blocking TCP connections and waits for them with `select()`. Up to 128 connections are in flight at once. A port is:
 
 - **open** if the handshake completes
 - **closed** if the target answers with RST
@@ -21,21 +21,21 @@ Probes go port by port across all hosts, which spreads the load instead of sendi
 ### Single Host
 
 ```
-portscan DC01 445,3389
-portscan 10.0.0.5 1-1024 500
+tcpscan DC01 445,3389
+tcpscan 10.0.0.5 1-1024 500
 ```
 
 ### Multiple Hosts (file upload)
 
 OC2: upload a hosts file through the GUI, then run:
 ```
-portscan-file 445
-portscan-file 80,443 500
+tcpscan-file 445
+tcpscan-file 80,443 500
 ```
 
 Cobalt Strike: pass the file path on the operator's system:
 ```
-portscan /tmp/resolved.txt 445
+tcpscan /tmp/resolved.txt 445
 ```
 
 ### Hosts File Format
