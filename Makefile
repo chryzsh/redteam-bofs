@@ -28,6 +28,8 @@ BOFS := src/adduser-domaingroup \
         src/enumshares \
         src/listpipes \
         src/lsfiles \
+        src/nslookup-file \
+        src/portscan \
         src/removeuser-domaingroup \
         src/removeuser-localgroup \
         src/sccm-disk \

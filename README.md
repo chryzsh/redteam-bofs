@@ -27,6 +27,9 @@ A collection of Beacon Object Files (BOFs) for post-exploitation operations. Inc
 | **enumshares-file** | Enumerate remote shares from an uploaded hostnames file | [Usage](docs/USAGE.md#enumshares-file) |
 | **listpipes** | Lists named pipes for IPC reconnaissance | [Usage](docs/USAGE.md#listpipes) |
 | **lsfiles** | Recursive file/directory listing with wildcards, date/size filters | [Usage](docs/USAGE.md#lsfiles) |
+| **nslookup-file** | Resolves a file of hostnames with parallel DNS queries | [Usage](docs/USAGE.md#nslookup-file) |
+| **portscan** | TCP connect scan of a single host | [Usage](docs/USAGE.md#portscan) |
+| **portscan-file** | TCP connect scan of hosts from an uploaded file (accepts `nslookup-file` output) | [Usage](docs/USAGE.md#portscan-file) |
 | **removeuser-domaingroup** | Removes a user from a domain global/universal group via `NetGroupDelUser` (target a DC) | [Usage](docs/USAGE.md#removeuser-domaingroup) |
 | **removeuser-localgroup** | Removes a user from a local group on a Windows computer (or a domain-local group when targeted at a DC) | [Usage](docs/USAGE.md#removeuser-localgroup) |
 | **sccm-wmi** | Recovers SCCM Network Access Account credentials from live WMI policy as `SYSTEM` (CRED-3) | [Usage](docs/USAGE.md#sccm-wmi) |

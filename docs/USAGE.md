@@ -28,6 +28,9 @@ This document provides usage information for all BOFs in the repository. Each se
 - [enumshares-file](#enumshares-file)
 - [listpipes](#listpipes)
 - [lsfiles](#lsfiles)
+- [nslookup-file](#nslookup-file)
+- [portscan](#portscan)
+- [portscan-file](#portscan-file)
 - [removeuser-domaingroup](#removeuser-domaingroup)
 - [removeuser-localgroup](#removeuser-localgroup)
 - [sccm-wmi](#sccm-wmi)
@@ -1008,6 +1011,109 @@ lsfiles C:\Users -r --exclude-path C:\Users\svc-build\AppData\Local\Temp\*
 
 # Show directories too (useful for directory-only shares)
 lsfiles \\test\dept --include-dirs
+```
+
+---
+
+## nslookup-file
+
+Resolve a file of hostnames to IPv4 addresses. Runs up to 64 DNS queries in parallel with `DnsQueryEx`. LLMNR and NetBIOS fallback are disabled. Requires Windows 8 / Server 2012 or later.
+
+### Syntax
+```
+nslookup-file [dns server ip]                          # OC2, upload hostnames file via GUI
+nslookup-file <path to hostnames file> [dns server ip] # CNA
+```
+
+### Arguments
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `dns server ip` | No | IPv4 address of the DNS server to query. Defaults to the system resolver. |
+
+### Hostnames File Format
+One hostname per line. Only the first word of each line is used.
+
+### Output
+One line per host that resolves, as `hostname<TAB>ip[,ip...]`. Hosts that do not resolve are counted in the summary line, not printed. A query with no answer after 5 seconds is cancelled and counted as timed out.
+
+### Examples
+```bash
+# OC2: run command, then upload hostnames file via GUI
+nslookup-file
+nslookup-file 10.0.0.10
+
+# CNA
+nslookup-file /tmp/computers.txt
+```
+
+---
+
+## portscan
+
+TCP connect scan of a single host. Up to 128 connections in flight, closed with RST. This is not a SYN scan: open ports see a full handshake.
+
+### Syntax
+```
+portscan <host> <ports> [timeout ms]
+```
+
+### Arguments
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `host` | Yes | Hostname or IP to scan |
+| `ports` | Yes | Comma-separated ports, ranges allowed (`445`, `80,443`, `1-1024,8000-8100`) |
+| `timeout ms` | No | Connect timeout in milliseconds. Default 1000. |
+
+### Output
+One line per open port, as `host:port`, then a summary line with open, closed (RST), filtered (no answer before timeout), and failed counts.
+
+### Examples
+```bash
+portscan DC01 445,3389
+portscan 10.0.0.5 1-1024 500
+```
+
+### CNA (Cobalt Strike)
+The CNA script auto-detects mode: if the first argument is an existing file path, it reads hosts from the file; otherwise it treats it as a single host.
+```bash
+portscan DC01 445
+portscan /tmp/resolved.txt 445
+```
+
+---
+
+## portscan-file
+
+TCP connect scan of every host in an uploaded hosts file (OC2). Same scanner as [portscan](#portscan).
+
+### Syntax
+```
+portscan-file <ports> [timeout ms]
+```
+Upload a newline-separated hosts file via the OC2 GUI file dialog.
+
+### Hosts File Format
+Each line can be a hostname, an IP, or `nslookup-file` output (`hostname<TAB>ip[,ip...]`). When a line has an IP, the first IP is used and the hostname is not resolved again.
+
+### Output
+Same as [portscan](#portscan).
+
+### Examples
+```bash
+# OC2: run command, then upload hosts file via GUI
+portscan-file 445
+portscan-file 80,443 500
+```
+
+### Host discovery pipeline
+```bash
+# 1. Export computer dNSHostName values from AD to computers.txt
+# 2. Resolve them; save the output as resolved.txt
+nslookup-file                 # upload computers.txt
+# 3. Scan SMB; save the output, strip ":445", save as smb.txt
+portscan-file 445             # upload resolved.txt
+# 4. Enumerate shares
+enumshares-file               # upload smb.txt
 ```
 
 ---
