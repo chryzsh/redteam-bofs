@@ -268,6 +268,15 @@ if should_sync "OperatorsKit"; then
         warn "OperatorsKit: credprompt.o not found"; OPS_OK=false
     fi
 
+    # enumwebclient - upstream "return;" in int go() breaks mingw,
+    # copy the pre-built MSVC .o from the repo
+    SRC="$EXTERNAL/OperatorsKit/KIT/EnumWebClient"
+    if [[ -f "$SRC/enumwebclient.o" ]]; then
+        cp "$SRC/enumwebclient.o" "$DST/enumwebclient.x64.o"
+    else
+        warn "OperatorsKit: enumwebclient.o not found"; OPS_OK=false
+    fi
+
     if $OPS_OK; then
         ok "OperatorsKit synced"; count_sync
     else
