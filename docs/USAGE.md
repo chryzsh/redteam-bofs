@@ -24,6 +24,7 @@ This document provides usage information for all BOFs in the repository. Each se
 - [enum-stored-accounts](#enum-stored-accounts)
 - [enum-user-right](#enum-user-right)
 - [fake-windows-popup](#fake-windows-popup)
+- [fake-windows-popup-async](#fake-windows-popup-async)
 - [enumshares](#enumshares)
 - [enumshares-file](#enumshares-file)
 - [listpipes](#listpipes)
@@ -524,6 +525,20 @@ inside Beacon.
 - With multiple validation attempts, the BOF wipes each failed submission before
   reopening the prompt. It retains only the final failed submission for output,
   and prints its password only when `include-password=1`.
+
+---
+
+## fake-windows-popup-async
+
+Experimental async copy of [fake-windows-popup](#fake-windows-popup). It runs as an async BOF job, so the beacon stays responsive while the prompt is open. Not ready for operational use: on Windows 11 build 26100 the timeout and the stop job event do not close the credential dialog, because the dialog runs in a separate process (`CredentialUIBroker.exe`).
+
+It takes the same `ZZiiiii` arguments as the original, except that a timeout of `0` means no timeout and there is no upper cap. The OC2 script uses `BOFType.ASYNC`:
+
+```text
+fake-windows-popup-async --timeout 0 --attempts 1
+```
+
+See [src/fake-windows-popup-async/README.md](../src/fake-windows-popup-async/README.md) for the differences from the original and the build steps.
 
 ---
 

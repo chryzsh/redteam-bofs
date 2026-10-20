@@ -54,6 +54,7 @@ BOFS=(
 # Linked x64 BOF-PE projects - keep in sync with root Makefile
 BOF_PES=(
     "src/fake-windows-popup"
+    "src/fake-windows-popup-async"
 )
 
 # Development/Issue BOFs
