@@ -23,7 +23,6 @@ This document provides usage information for all BOFs in the repository. Each se
 - [enum-registry](#enum-registry)
 - [enum-stored-accounts](#enum-stored-accounts)
 - [enum-user-right](#enum-user-right)
-- [fake-windows-popup](#fake-windows-popup)
 - [fake-windows-popup-async](#fake-windows-popup-async)
 - [enumshares](#enumshares)
 - [enumshares-file](#enumshares-file)
@@ -456,11 +455,13 @@ enum-user-right --computer \\server01 --right SeServiceLogonRight
 
 ---
 
-## fake-windows-popup
+## fake-windows-popup-async
 
 Display the native Windows credential dialog over a dimmed interactive desktop.
-This x64 BOF-PE defaults to one capture-only submission and suppresses password
-output. Validation, password output, and persistence require explicit flags.
+This x64 BOF-PE runs as an async BOF job, so the beacon stays responsive while
+the prompt is open. It defaults to one capture-only submission and suppresses
+password output. Validation, password output, and persistence require explicit
+flags. Stop the job in the C2 to dismiss the prompt.
 
 ### Packed interface
 
@@ -472,18 +473,26 @@ ZZiiiii: caption message timeout-seconds max-attempts validate include-password 
 |----------|---------|-------------|
 | `caption` | `Windows Security` | UTF-16 dialog caption; pass an empty string for the default. |
 | `message` | Generated from the DC or hostname | UTF-16 dialog message; pass an empty string for the default. |
-| `timeout-seconds` | `60` | Overall timeout, clamped to 10–300 seconds. |
+| `timeout-seconds` | `60` | Overall timeout. `0` means no timeout (wait until capture, cancel, or stop). Minimum 10 s, no upper cap. |
 | `max-attempts` | `1` | Submission limit, clamped to 1–3. |
 | `validate` | `0` | Set to `1` to call `LogonUserW`; this creates authentication traffic and may contribute to lockout. |
 | `include-password` | `0` | Set to `1` to send the final submitted password through the C2 output channel, whether validation succeeds or fails. |
-| `persistent` | `0` | Set to `1` to reopen ordinary Cancel/close and empty-password submissions until timeout. `Ctrl+Alt+0` remains an emergency exit. |
+| `persistent` | `0` | Set to `1` to reopen ordinary Cancel/close and empty-password submissions until timeout or stop. `Ctrl+Alt+0` remains an emergency exit. |
+
+### OC2
+
+The OC2 script uses `BOFType.ASYNC`:
+
+```text
+fake-windows-popup-async --timeout 0 --attempts 1
+```
 
 ### Standalone example
 
 Place the SDK-built `beacon.dll` beside the executable:
 
 ```text
-fake-windows-popup.exe "" "" 60 1 0 0 0
+fake-windows-popup-async.exe "" "" 60 1 0 0 0
 ```
 
 ### Cobalt Strike built-in example
@@ -492,13 +501,7 @@ The built-in `inline-execute-pe` command sends one raw string rather than a
 Beacon-packed buffer. Use the numeric shorthand for default caption/message:
 
 ```text
-inline-execute-pe /path/fake-windows-popup.exe 60 1 0 0 1
-```
-
-The raw full form is also accepted:
-
-```text
-inline-execute-pe /path/fake-windows-popup.exe "Windows Security" "Enter your credentials" 60 1 0 0 1
+inline-execute-pe /path/fake-windows-popup-async.exe 60 1 0 0 1
 ```
 
 For backward compatibility, the trailing `persistent` value may be omitted.
@@ -507,38 +510,24 @@ Loaders and wrappers that use `bof_pack` should continue to use `ZZiiiii`.
 ### Emergency exit
 
 Press `Ctrl+Alt+0` on the main keyboard row to close the credential prompt and
-desktop dimmer. The hotkey remains active in persistent mode. If Windows delays
-closing its credential UI, the invocation waits instead of terminating a thread
-inside Beacon.
+desktop dimmer. The hotkey remains active in persistent mode.
 
 ### Notes
 
-- This is a linked BOF-PE, not a COFF `.o` file. It requires a compatible BOF-PE loader.
-- No OC2 wrapper is included because this repository does not yet contain or document an OC2 BOF-PE loader.
+- This is a linked BOF-PE, not a COFF `.o` file. It requires a C2 that supports async BOFs and BOF-PE.
 - The prompt appears only on the process's current interactive desktop.
 - Startup output reports `session` and `console-session` for diagnosis. They can
   legitimately differ when the interactive desktop is an RDP session.
 - A background Beacon may be denied foreground activation. In that case the
   dimmer automatically leaves the topmost band so it cannot hide brokered CredUI.
 - The overlay imitates secure-desktop dimming; it cannot run on the secure desktop.
+- On Windows 11 build 26100+, the credential dialog belongs to `CredentialUIBroker.exe`. The BOF terminates the broker process to dismiss the dialog on stop or timeout.
 - Persistent mode does not consume `max-attempts` for Cancel/close or empty-password submissions; only nonempty validation submissions count.
 - With multiple validation attempts, the BOF wipes each failed submission before
   reopening the prompt. It retains only the final failed submission for output,
   and prints its password only when `include-password=1`.
 
----
-
-## fake-windows-popup-async
-
-Experimental async copy of [fake-windows-popup](#fake-windows-popup). It runs as an async BOF job, so the beacon stays responsive while the prompt is open. Not ready for operational use: on Windows 11 build 26100 the timeout and the stop job event do not close the credential dialog, because the dialog runs in a separate process (`CredentialUIBroker.exe`).
-
-It takes the same `ZZiiiii` arguments as the original, except that a timeout of `0` means no timeout and there is no upper cap. The OC2 script uses `BOFType.ASYNC`:
-
-```text
-fake-windows-popup-async --timeout 0 --attempts 1
-```
-
-See [src/fake-windows-popup-async/README.md](../src/fake-windows-popup-async/README.md) for the differences from the original and the build steps.
+See [src/fake-windows-popup-async/README.md](../src/fake-windows-popup-async/README.md) for build steps.
 
 ---
 

@@ -1,26 +1,22 @@
 # fake-windows-popup-async BOF-PE
 
-Async copy of [fake-windows-popup](../fake-windows-popup/README.md). It shows the Windows credential prompt over a dimmed desktop, like the original, but runs as an async BOF job. The original runs synchronously and blocks the beacon until the prompt closes, for up to 300 seconds. This copy runs on its own thread, so the beacon stays responsive while the prompt is open.
+Shows a native Windows credential prompt over a dimmed desktop. Runs as an async BOF job, so the beacon stays responsive while the prompt is open.
 
 It uses the async BOF API from Outflank's [Async BOFs](https://www.outflank.nl/blog/2025/07/16/async-bofs-wake-me-up-before-you-go-go/) post: `BeaconWakeup` and `BeaconGetStopJobEvent`. The C2 must support both async BOFs and BOF-PE.
 
 ## Status
 
-Experimental. Not ready for operational use.
+Tested on Windows 11 build 26100 (scan-ws03). Capture, stop, and timeout paths all pass.
 
-- The capture path was tested in an interactive session on Windows 11 build 26100.
-- Known issue: on that build, the timeout and the stop job event do not close the credential dialog. The dialog runs in a separate process (`CredentialUIBroker.exe`), so closing the windows this BOF owns does not close it.
+## Features
 
-## Differences from the original
-
-| Area | Original | Async copy |
-|------|----------|------------|
-| Execution | Blocks the beacon thread | Runs as an async job; needs `BeaconGetStopJobEvent` from the C2, and prints an error and returns without it |
-| Stopping | Timeout, `Ctrl+Alt+0`, or the user | Also stopping the job in the C2. The BOF prints `[*] Credential prompt stopped by operator`. See the known issue under Status. |
-| Timeout | 0 means 60 s, capped at 300 s | 0 means no timeout. There is no upper cap. The minimum is still 10 s. With no arguments at all, the default is still 60 s. |
-| COM | Uses whatever apartment the calling thread has | Calls `CoInitializeEx(COINIT_APARTMENTTHREADED)` around the prompt, because a C2-created thread has not joined an apartment. It calls `CoUninitialize` only when `CoInitializeEx` returned `S_OK` or `S_FALSE`. |
-| Wakeup | None | `BeaconWakeup` right after a capture, and again when `go` returns |
-| Exceptions | Built with `-fno-exceptions` | Built with exceptions. `go` catches `std::exception`. |
+- Runs as an async BOF job. The beacon stays responsive while the prompt is open.
+- The C2 can stop the job to dismiss the prompt. The BOF prints `[*] Credential prompt stopped by operator`.
+- Timeout 0 means no timeout (wait until capture, cancel, or stop). No upper cap. Minimum 10 s. Default 60 s.
+- `CoInitializeEx(COINIT_APARTMENTTHREADED)` around the prompt (a C2-created thread has not joined an apartment).
+- `BeaconWakeup` after a capture and when `go` returns.
+- Built with exceptions. `go` catches `std::exception`.
+- On Windows 11 build 26100+, the credential dialog belongs to `CredentialUIBroker.exe`. The monitor thread terminates the broker to dismiss the dialog on stop or timeout.
 
 ## Arguments
 
@@ -54,4 +50,4 @@ The executable is written to `src/fake-windows-popup-async/build-mingw/fake-wind
 
 ## Operational constraints
 
-The constraints of the original apply. See [fake-windows-popup](../fake-windows-popup/README.md#operational-constraints).
+Requires a C2 that supports async BOFs and BOF-PE. The BOF must run in an interactive session where the user can see the prompt.

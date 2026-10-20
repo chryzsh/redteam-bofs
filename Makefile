@@ -37,8 +37,7 @@ BOFS := src/adduser-domaingroup \
         src/tcpscan
 
 # Linked BOF-PE projects (x64 PE output, not COFF objects)
-BOF_PES := src/fake-windows-popup \
-           src/fake-windows-popup-async
+BOF_PES := src/fake-windows-popup-async
 
 # Color output
 COLOR_RESET := \033[0m

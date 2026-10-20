@@ -22,8 +22,7 @@ A collection of Beacon Object Files (BOFs) for post-exploitation operations. Inc
 | **enum-registry** | Extracts RDP history, installed software, env vars, WSL/Docker info across all loaded user hives | [Usage](docs/USAGE.md#enum-registry) |
 | **enum-stored-accounts** | Lists service accounts, tasks with stored passwords, and per-profile DPAPI material (which tokens are worth stealing) | [Usage](docs/USAGE.md#enum-stored-accounts) |
 | **enum-user-right** | Lists accounts assigned an effective LSA user right; defaults to `SeMachineAccountPrivilege` | [Usage](docs/USAGE.md#enum-user-right) |
-| **fake-windows-popup** (BOF-PE, x64) | Shows native Windows credential UI with optional validation and password output | [Usage](docs/USAGE.md#fake-windows-popup) |
-| **fake-windows-popup-async** (BOF-PE, x64, experimental) | Async copy of fake-windows-popup that keeps the beacon responsive; timeout and job stop do not close the dialog on current Windows 11 | [Usage](docs/USAGE.md#fake-windows-popup-async) |
+| **fake-windows-popup-async** (BOF-PE, x64) | Shows native Windows credential UI over a dimmed desktop; runs as an async BOF job so the beacon stays responsive | [Usage](docs/USAGE.md#fake-windows-popup-async) |
 | **enumshares** | Enumerate remote shares and test filesystem access (single host) | [Usage](docs/USAGE.md#enumshares) |
 | **enumshares-file** | Enumerate remote shares from an uploaded hostnames file | [Usage](docs/USAGE.md#enumshares-file) |
 | **listpipes** | Lists named pipes for IPC reconnaissance | [Usage](docs/USAGE.md#listpipes) |
@@ -100,7 +99,6 @@ make
 make enum-creds
 
 # Build the x64 BOF-PEs
-make fake-windows-popup
 make fake-windows-popup-async
 
 # List available BOFs
