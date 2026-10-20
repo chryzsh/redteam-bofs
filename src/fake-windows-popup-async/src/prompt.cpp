@@ -31,6 +31,44 @@ BOOL CALLBACK close_owned_window(HWND window, LPARAM parameter) {
     return TRUE;
 }
 
+// On Windows 11 build 26100+, CredUIPromptForWindowsCredentialsW delegates to
+// CredentialUIBroker.exe.  The dialog belongs to that process, so
+// EnumThreadWindows on the calling thread finds nothing.  This callback finds
+// the broker's dialog by class name and terminates the broker process.  When
+// the broker dies the RPC channel breaks and CredUIPromptForWindowsCredentialsW
+// returns an error in the calling process.  The caller checks the monitor's
+// timed_out/stopped/cancelled flags first, so the specific error code from
+// CredUI does not matter.
+BOOL CALLBACK dismiss_broker_dialog(HWND window, LPARAM parameter) {
+    wchar_t class_name[64]{};
+    if (GetClassNameW(window, class_name, 64) <= 0) {
+        return TRUE;
+    }
+    if (lstrcmpW(class_name, L"Credential Dialog Xaml Host") != 0) {
+        return TRUE;
+    }
+    DWORD window_pid = 0;
+    GetWindowThreadProcessId(window, &window_pid);
+    if (window_pid == 0 || window_pid == GetCurrentProcessId()) {
+        return TRUE;
+    }
+    DWORD window_session = 0;
+    DWORD our_session = 0;
+    ProcessIdToSessionId(window_pid, &window_session);
+    ProcessIdToSessionId(GetCurrentProcessId(), &our_session);
+    if (window_session != our_session) {
+        return TRUE;
+    }
+    HANDLE process = OpenProcess(PROCESS_TERMINATE, FALSE, window_pid);
+    if (process != nullptr) {
+        TerminateProcess(process, 0);
+        CloseHandle(process);
+    }
+    auto* found = reinterpret_cast<bool*>(parameter);
+    *found = true;
+    return FALSE;
+}
+
 DWORD WINAPI monitor_prompt(void* parameter) {
     auto* monitor = static_cast<PromptMonitor*>(parameter);
     HANDLE events[] = {
@@ -52,10 +90,24 @@ DWORD WINAPI monitor_prompt(void* parameter) {
     } else {
         return 0;
     }
+    // In-process dialog (older builds): close windows owned by the parent
     EnumThreadWindows(
         monitor->prompt_thread_id,
         close_owned_window,
         reinterpret_cast<LPARAM>(monitor));
+    // Broker-hosted dialog (Windows 11 26100+): terminate the broker
+    // process so the RPC breaks and CredUI returns.  Retry until CredUI
+    // returns or the dialog is gone.
+    for (int attempt = 0; attempt < 20; ++attempt) {
+        if (WaitForSingleObject(monitor->completed_event, 150) == WAIT_OBJECT_0) {
+            break;
+        }
+        bool found = false;
+        EnumWindows(dismiss_broker_dialog, reinterpret_cast<LPARAM>(&found));
+        if (!found) {
+            break;
+        }
+    }
     return 0;
 }
 
