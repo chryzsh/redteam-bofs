@@ -283,6 +283,9 @@ PromptResult run_prompt(
         if (prompt_result != ERROR_SUCCESS) {
             release_prompt_buffer(packed, packed_size);
             if (prompt_result == ERROR_CANCELLED && settings.persistent) {
+                BeaconPrintf(
+                    CALLBACK_OUTPUT,
+                    "\n\n[!] User tried to close the prompt\n[*] Reopening prompt\n");
                 last_auth_error = ERROR_SUCCESS;
                 continue;
             }
