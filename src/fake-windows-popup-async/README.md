@@ -20,19 +20,25 @@ Tested on Windows 11 build 26100 (scan-ws03) as a standalone EXE. Capture, stop,
 
 ## Arguments
 
-Packed format: `ZZiiiii`, the same as the original:
+Packed format: `ZZiiiii`:
 
 ```text
-caption message timeout-seconds max-attempts validate include-password persistent
+caption message timeout-seconds max-attempts validate persistent force
 ```
 
-`go` parses the packed buffer itself (`src/args.cpp`) and accepts both packings. OC2 uses the Cobalt Strike layout: a little-endian total length, then little-endian sizes and ints. BOF-PE's `loader.exe` packs big-endian with no total length. The raw string forms for `inline-execute-pe` are also unchanged. In OC2, load `fake_windows_popup_async_bof.s1.py`. It uses `BOFType.ASYNC`, so OC2 sends the BOF as an async job:
+The password is always printed. `go` parses the packed buffer itself (`src/args.cpp`) and accepts both packings. OC2 uses the Cobalt Strike layout: a little-endian total length, then little-endian sizes and ints. BOF-PE's `loader.exe` packs big-endian with no total length. The raw string forms for `inline-execute-pe` are also unchanged. In OC2, load `fake_windows_popup_async_bof.s1.py`. It uses `BOFType.ASYNC`, so OC2 sends the BOF as an async job:
 
 ```text
 fake-windows-popup-async --timeout 0 --attempts 1
 ```
 
 Stop the job with the OC2 job controls.
+
+## Persistence modes
+
+`--persistent` reopens the prompt after Cancel or an empty password submission. A wrong password with `--validate` still counts against `--attempts` and stops when the limit is reached. This covers the common case where the prompt should survive an accidental Cancel but a genuine wrong password is accepted and reported.
+
+`--persistent --validate --force` reopens the prompt after Cancel, empty password, and failed validation. The prompt never goes away until the user enters a valid password, the operator stops the job, or the timeout expires. `--attempts` is ignored in this mode. Use this when you need a confirmed valid credential and want the prompt to stay up until the user gets it right.
 
 ## Beacon API header
 
@@ -46,7 +52,7 @@ make -C src/fake-windows-popup-async test
 make -C src/fake-windows-popup-async inspect
 ```
 
-The BOF-PE is a DLL that exports `go`, because OC2 runs a BOF-PE as a DLL. It is built with `BOF_PE_DLL`, so `BEACON_MAIN` defines no `main` and the MinGW CRT DLL startup initializes the CRT. The DLL is written to `src/fake-windows-popup-async/build-mingw/fake-windows-popup-async.dll`, with the standalone `beacon.dll` beside it. For a standalone test, run it with BOF-PE's `loader.exe`: `loader.exe fake-windows-popup-async.dll ZZiiiii <caption> <message> <timeout> <attempts> <validate> <include-password> <persistent>`. `make all` also copies the DLL to `src/fake-windows-popup-async/fake-windows-popup-async.x64.o`, the name OC2 looks up beside the `.s1.py` script.
+The BOF-PE is a DLL that exports `go`, because OC2 runs a BOF-PE as a DLL. It is built with `BOF_PE_DLL`, so `BEACON_MAIN` defines no `main` and the MinGW CRT DLL startup initializes the CRT. The DLL is written to `src/fake-windows-popup-async/build-mingw/fake-windows-popup-async.dll`, with the standalone `beacon.dll` beside it. For a standalone test, run it with BOF-PE's `loader.exe`: `loader.exe fake-windows-popup-async.dll ZZiiiii <caption> <message> <timeout> <attempts> <validate> <persistent> <force>`. `make all` also copies the DLL to `src/fake-windows-popup-async/fake-windows-popup-async.x64.o`, the name OC2 looks up beside the `.s1.py` script.
 
 ## Operational constraints
 

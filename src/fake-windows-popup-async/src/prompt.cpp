@@ -332,6 +332,15 @@ PromptResult run_prompt(
         if (error_code != nullptr) {
             *error_code = last_auth_error;
         }
+        if (settings.force) {
+            // Force mode: reopen after failed validation, don't count
+            // against max_attempts. The prompt stays open until the user
+            // enters a valid password, the operator stops the job, or the
+            // timeout expires.
+            credentials->clear();
+            --submitted_attempts;
+            continue;
+        }
         final_result = PromptResult::attempts_exhausted;
         if (submitted_attempts < settings.max_attempts) {
             credentials->clear();

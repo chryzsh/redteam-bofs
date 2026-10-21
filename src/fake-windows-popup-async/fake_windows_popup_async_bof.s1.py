@@ -30,8 +30,8 @@ class FakeWindowsPopupAsyncBOF(BaseBOFTask):
         self.parser.add_argument("--timeout", type=int, default=0, help="Timeout in seconds, minimum 10. 0 waits until capture, cancel or job stop (default 0)")
         self.parser.add_argument("--attempts", type=int, default=1, help="Submissions to accept, 1 to 3 (default 1)")
         self.parser.add_argument("--validate", action="store_true", help="Validate the credential with LogonUserW")
-        self.parser.add_argument("--include-password", action="store_true", help="Print the captured password")
         self.parser.add_argument("--persistent", action="store_true", help="Reopen the prompt after Cancel or an empty password")
+        self.parser.add_argument("--force", action="store_true", help="With --persistent --validate: reopen after failed validation until a valid password is entered")
 
     def _encode_arguments_bof(self, arguments: List[str]) -> List[Tuple[BOFArgumentEncoding, str]]:
         parsed = self.parser.parse_args(arguments)
@@ -47,6 +47,6 @@ class FakeWindowsPopupAsyncBOF(BaseBOFTask):
             (BOFArgumentEncoding.INT, parsed.timeout),
             (BOFArgumentEncoding.INT, parsed.attempts),
             (BOFArgumentEncoding.INT, int(parsed.validate)),
-            (BOFArgumentEncoding.INT, int(parsed.include_password)),
             (BOFArgumentEncoding.INT, int(parsed.persistent)),
+            (BOFArgumentEncoding.INT, int(parsed.force)),
         ]

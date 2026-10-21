@@ -6,8 +6,8 @@ struct AppSettings {
     unsigned int timeout_seconds;
     unsigned int max_attempts;
     bool validate;
-    bool include_password;
     bool persistent;
+    bool force;
 };
 
 // As an async job the prompt no longer blocks the beacon, so there is no

