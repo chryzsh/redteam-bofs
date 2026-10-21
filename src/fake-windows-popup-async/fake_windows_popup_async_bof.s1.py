@@ -1,6 +1,6 @@
 import os
 
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 from outflank_stage1.task.base_bof_task import BaseBOFTask
 from outflank_stage1.task.enums import BOFType, BOFArgumentEncoding
 from outflank_stage1.task.exceptions import TaskInvalidArgumentsException
@@ -32,6 +32,16 @@ class FakeWindowsPopupAsyncBOF(BaseBOFTask):
         self.parser.add_argument("--validate", action="store_true", help="Validate the credential with LogonUserW")
         self.parser.add_argument("--persistent", action="store_true", help="Reopen the prompt after Cancel or an empty password")
         self.parser.add_argument("--force", action="store_true", help="With --persistent --validate: reopen after failed validation until a valid password is entered")
+
+    def rewrite_response(self, response: Optional[str]) -> Optional[str]:
+        # OC2 delivers async BOF output in chunks, one per implant check-in,
+        # and trims the newlines at the edges of each chunk before it appends
+        # the chunk to the task response. Newlines printed by the BOF at a
+        # chunk boundary are lost, so add the separator here instead. This is
+        # the same pattern OC2's own async BOFs (oc2-async) use.
+        if response and self.get_out_name() == "exec_bof_async" and not response.startswith("Task started."):
+            return "\n\n" + response
+        return response
 
     def _encode_arguments_bof(self, arguments: List[str]) -> List[Tuple[BOFArgumentEncoding, str]]:
         parsed = self.parser.parse_args(arguments)
