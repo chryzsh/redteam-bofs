@@ -26,7 +26,7 @@ Packed format: `ZZiiiii`, the same as the original:
 caption message timeout-seconds max-attempts validate include-password persistent
 ```
 
-The raw string forms for `inline-execute-pe` are also unchanged. In OC2, load `fake_windows_popup_async_bof.s1.py`. It uses `BOFType.ASYNC`, so OC2 sends the BOF as an async job:
+`go` parses the packed buffer itself (`src/args.cpp`) and accepts both packings. OC2 uses the Cobalt Strike layout: a little-endian total length, then little-endian sizes and ints. BOF-PE's `loader.exe` packs big-endian with no total length. The raw string forms for `inline-execute-pe` are also unchanged. In OC2, load `fake_windows_popup_async_bof.s1.py`. It uses `BOFType.ASYNC`, so OC2 sends the BOF as an async job:
 
 ```text
 fake-windows-popup-async --timeout 0 --attempts 1

@@ -6,6 +6,7 @@
 #include <exception>
 
 #include "app.h"
+#include "args.h"
 #include "credentials.h"
 #include "dimmer.h"
 #include "policy.h"
@@ -36,94 +37,28 @@ void set_default_settings(AppSettings* settings) {
     };
 }
 
-bool read_packed_wide_size(
-    const char* data,
-    int len,
-    int* offset,
-    unsigned int* bytes) {
-    if (*offset < 0 || *offset > len - 4) {
-        return false;
+void apply_packed_settings(const PackedArguments& packed, AppSettings* settings) {
+    if (packed.caption != nullptr) {
+        settings->caption = reinterpret_cast<const wchar_t*>(packed.caption);
     }
-    const auto* current = reinterpret_cast<const unsigned char*>(data + *offset);
-    const unsigned int size =
-        (static_cast<unsigned int>(current[0]) << 24) |
-        (static_cast<unsigned int>(current[1]) << 16) |
-        (static_cast<unsigned int>(current[2]) << 8) |
-        static_cast<unsigned int>(current[3]);
-    if (size < sizeof(wchar_t) || size > kMaximumUiStringBytes ||
-        size % sizeof(wchar_t) != 0 ||
-        size > static_cast<unsigned int>(len - *offset - 4)) {
-        return false;
+    if (packed.message != nullptr) {
+        settings->message = reinterpret_cast<const wchar_t*>(packed.message);
     }
-    const int end = *offset + 4 + static_cast<int>(size);
-    if (data[end - 1] != '\0' || data[end - 2] != '\0') {
-        return false;
+    if (packed.int_count > 0) {
+        settings->timeout_seconds = clamp_timeout_seconds(packed.ints[0]);
     }
-    *offset = end;
-    *bytes = size;
-    return true;
-}
-
-bool looks_like_packed_settings(const char* data, int len) {
-    if (data == nullptr || len < 4) {
-        return false;
+    if (packed.int_count > 1) {
+        settings->max_attempts = clamp_max_attempts(packed.ints[1]);
     }
-    int offset = 0;
-    unsigned int bytes = 0;
-    if (!read_packed_wide_size(data, len, &offset, &bytes)) {
-        return false;
+    if (packed.int_count > 2) {
+        settings->validate = normalize_bool(packed.ints[2]);
     }
-    if (offset == len) {
-        return true;
+    if (packed.int_count > 3) {
+        settings->include_password = normalize_bool(packed.ints[3]);
     }
-    if (!read_packed_wide_size(data, len, &offset, &bytes)) {
-        return false;
+    if (packed.int_count > 4) {
+        settings->persistent = normalize_bool(packed.ints[4]);
     }
-    const int remaining = len - offset;
-    return remaining >= 0 && remaining <= 5 * static_cast<int>(sizeof(int)) &&
-        remaining % static_cast<int>(sizeof(int)) == 0;
-}
-
-bool extract_wide(datap* parser, const wchar_t** value) {
-    if (BeaconDataLength(parser) <= 0) {
-        return true;
-    }
-    int bytes = 0;
-    auto* extracted = reinterpret_cast<const wchar_t*>(
-        BeaconDataExtract(parser, &bytes));
-    if (extracted == nullptr || bytes < static_cast<int>(sizeof(wchar_t)) ||
-        bytes > kMaximumUiStringBytes ||
-        bytes % static_cast<int>(sizeof(wchar_t)) != 0 ||
-        extracted[(bytes / static_cast<int>(sizeof(wchar_t))) - 1] != L'\0') {
-        return false;
-    }
-    *value = extracted;
-    return true;
-}
-
-bool parse_packed_settings(const char* data, int len, AppSettings* settings) {
-    datap parser{};
-    BeaconDataParse(&parser, const_cast<char*>(data), len);
-    if (!extract_wide(&parser, &settings->caption) ||
-        !extract_wide(&parser, &settings->message)) {
-        return false;
-    }
-    if (BeaconDataLength(&parser) >= static_cast<int>(sizeof(int))) {
-        settings->timeout_seconds = clamp_timeout_seconds(BeaconDataInt(&parser));
-    }
-    if (BeaconDataLength(&parser) >= static_cast<int>(sizeof(int))) {
-        settings->max_attempts = clamp_max_attempts(BeaconDataInt(&parser));
-    }
-    if (BeaconDataLength(&parser) >= static_cast<int>(sizeof(int))) {
-        settings->validate = normalize_bool(BeaconDataInt(&parser));
-    }
-    if (BeaconDataLength(&parser) >= static_cast<int>(sizeof(int))) {
-        settings->include_password = normalize_bool(BeaconDataInt(&parser));
-    }
-    if (BeaconDataLength(&parser) >= static_cast<int>(sizeof(int))) {
-        settings->persistent = normalize_bool(BeaconDataInt(&parser));
-    }
-    return BeaconDataLength(&parser) == 0;
 }
 
 bool parse_decimal(const wchar_t* value, int* result) {
@@ -275,8 +210,10 @@ bool parse_settings(const char* data, int len, SettingsStorage* storage) {
     if (data == nullptr || len <= 0) {
         return true;
     }
-    if (looks_like_packed_settings(data, len)) {
-        return parse_packed_settings(data, len, &storage->value);
+    PackedArguments packed{};
+    if (parse_packed_arguments(data, len, &packed)) {
+        apply_packed_settings(packed, &storage->value);
+        return true;
     }
     return parse_raw_settings(data, len, storage);
 }

@@ -43,6 +43,7 @@ endif()
 # OC2 runs a BOF-PE as a DLL that exports go (BOF-PE (.dll)). BOF_PE_DLL makes
 # BEACON_MAIN and BEACON_INIT no-ops, the CRT DLL startup initializes the CRT.
 add_library(fake-windows-popup-async SHARED
+    src/args.cpp
     src/credentials.cpp
     src/dimmer.cpp
     src/main.cpp

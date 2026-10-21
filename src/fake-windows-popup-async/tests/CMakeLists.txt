@@ -10,3 +10,8 @@ add_executable(policy-tests policy_tests.cpp ../src/policy.cpp)
 target_include_directories(policy-tests PRIVATE ../src)
 target_compile_options(policy-tests PRIVATE -Wall -Wextra -Wpedantic)
 add_test(NAME policy COMMAND policy-tests)
+
+add_executable(args-tests args_tests.cpp ../src/args.cpp)
+target_include_directories(args-tests PRIVATE ../src)
+target_compile_options(args-tests PRIVATE -Wall -Wextra -Wpedantic)
+add_test(NAME args COMMAND args-tests)
