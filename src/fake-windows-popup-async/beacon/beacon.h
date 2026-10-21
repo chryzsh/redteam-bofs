@@ -192,6 +192,10 @@ BEACON_IMPEX char * BeaconGetCustomUserData();
  *    BeaconGetStopJobEvent - event handle the C2 signals when the operator stops
  *                            the job. The BOF must return soon after it is signaled.
  *                            NULL means the C2 does not run this BOF as async.
+ *
+ *    A C2 without these APIs may leave the import unresolved, so check the
+ *    address before calling it. Read it through a volatile local, GCC drops a
+ *    plain `BeaconGetStopJobEvent != nullptr` check (see README).
  */
 BEACON_IMPEX void   BeaconWakeup();
 BEACON_IMPEX HANDLE BeaconGetStopJobEvent();
@@ -203,7 +207,34 @@ BEACON_IMPEX int BeaconInvokeStandalone(int argc, const char* argv[], const char
 #if !defined(_MSC_VER) && !defined(__clang__)
     #define BEACON_DISCARD __attribute__((section(".discard")))
     #define BEACON_DISCARD_DATA __attribute__((section(".discard_data")))
+#else
+    #pragma section(".discard_data", read, write)
+    //#pragma code_seg(".discard")
+    #define BEACON_DISCARD __declspec(code_seg(".discard"))
+    #define BEACON_DISCARD_DATA __declspec(allocate(".discard_data"))
+#endif
 
+#if defined(BOF_PE_DLL)
+    /* DLL mode. The BOF-PE is linked as a DLL that exports go, which is the
+     * form OC2 loads as a BOF-PE (.dll). The loader (the C2, or loader.exe for
+     * standalone tests) calls the DLL entry point with DLL_PROCESS_ATTACH.
+     * That entry point is the CRT's DLL startup (DllMainCRTStartup for MinGW,
+     * _DllMainCRTStartup for MSVC/clang-cl), which initializes the CRT and runs
+     * the global constructors. Static destructors are registered in the DLL's
+     * own exit table and run on DLL_PROCESS_DETACH, never in the host process
+     * exit table. BEACON_INIT therefore has nothing left to do, and there is no
+     * main or BeaconInvokeStandalone import. Run the DLL standalone with
+     * loader.exe <name>.dll <fmt> <args>. */
+    #define BEACON_INIT ((void)0)
+
+    /* Keeps the BEACON_MAIN(fmt, entry) line valid in DLL mode. It emits no
+     * code or data. fmt documents the argument format for loader.exe. */
+    #define BEACON_MAIN(fmt, entry) \
+        typedef char __beacon_main_fmt_check[sizeof(fmt) > 0 ? 1 : -1];
+
+#else /* EXE mode */
+
+#if !defined(_MSC_VER) && !defined(__clang__)
     /* __main runs the global constructors, and they (and libstdc++'s own
      * statics) register their destructors with atexit, which MinGW forwards
      * to the process-wide msvcrt exit table. The C2 frees this image after go
@@ -228,11 +259,6 @@ BEACON_IMPEX int BeaconInvokeStandalone(int argc, const char* argv[], const char
     }
     #define BEACON_INIT if(__beacon_init_crt) __beacon_init()
 #else
-    #pragma section(".discard_data", read, write)
-    //#pragma code_seg(".discard")
-    #define BEACON_DISCARD __declspec(code_seg(".discard"))
-    #define BEACON_DISCARD_DATA __declspec(allocate(".discard_data"))
-
     extern void __scrt_initialize_crt(int module_type);
     #define BEACON_INIT if(__beacon_init_crt) __scrt_initialize_crt(1)
 #endif
@@ -246,6 +272,8 @@ BEACON_IMPEX int BeaconInvokeStandalone(int argc, const char* argv[], const char
     }
 
     extern bool __beacon_init_crt;
+
+#endif /* BOF_PE_DLL */
 
 #ifdef __cplusplus
 }
