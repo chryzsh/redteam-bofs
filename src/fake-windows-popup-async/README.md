@@ -6,7 +6,7 @@ It uses the async BOF API from Outflank's [Async BOFs](https://www.outflank.nl/b
 
 ## Status
 
-Tested on Windows 11 build 26100 (scan-ws03). Capture, stop, and timeout paths all pass.
+Tested on Windows 11 build 26100 (scan-ws03) as a standalone EXE. Capture, stop, and timeout paths all pass. The DLL build has not been run on Windows or under OC2 yet.
 
 ## Features
 
@@ -36,7 +36,7 @@ Stop the job with the OC2 job controls.
 
 ## Beacon API header
 
-`beacon/` holds a local copy of the BOF-PE beacon layer (`beacon.h` and the standalone `beacon.dll` source). It adds `BeaconWakeup`, `BeaconGetStopJobEvent`, and a `BEACON_INIT` change that keeps static destructors out of the host process exit table. The shared `external/BOF-PE/beacon` has none of these, so this sample does not use it. The build still takes `common/standalone.cpp` and `link.ld` from `external/BOF-PE`.
+`beacon/` holds a local copy of the BOF-PE beacon layer (`beacon.h` and the standalone `beacon.dll` source) from the `async` branch of [chryzsh/BOF-PE](https://github.com/chryzsh/BOF-PE/tree/async). It adds `BeaconWakeup`, `BeaconGetStopJobEvent`, and the `BOF_PE_DLL` mode. The shared `external/BOF-PE/beacon` has none of these, so this sample does not use it. The build still takes `common/standalone.cpp` from `external/BOF-PE` for the standalone `beacon.dll`.
 
 ## Build
 
@@ -46,7 +46,7 @@ make -C src/fake-windows-popup-async test
 make -C src/fake-windows-popup-async inspect
 ```
 
-The executable is written to `src/fake-windows-popup-async/build-mingw/fake-windows-popup-async.exe`, with the standalone `beacon.dll` beside it. `make all` also copies the PE to `src/fake-windows-popup-async/fake-windows-popup-async.x64.o`, the name OC2 looks up beside the `.s1.py` script.
+The BOF-PE is a DLL that exports `go`, because OC2 runs a BOF-PE as a DLL. It is built with `BOF_PE_DLL`, so `BEACON_MAIN` defines no `main` and the MinGW CRT DLL startup initializes the CRT. The DLL is written to `src/fake-windows-popup-async/build-mingw/fake-windows-popup-async.dll`, with the standalone `beacon.dll` beside it. For a standalone test, run it with BOF-PE's `loader.exe`: `loader.exe fake-windows-popup-async.dll ZZiiiii <caption> <message> <timeout> <attempts> <validate> <include-password> <persistent>`. `make all` also copies the DLL to `src/fake-windows-popup-async/fake-windows-popup-async.x64.o`, the name OC2 looks up beside the `.s1.py` script.
 
 ## Operational constraints
 

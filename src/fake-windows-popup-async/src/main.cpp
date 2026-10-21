@@ -526,4 +526,6 @@ extern "C" __declspec(dllexport) void go(const char* data, int len) {
     }
 }
 
+// Built with BOF_PE_DLL, so this emits nothing. It records the argument
+// format for loader.exe and keeps the source buildable as an EXE.
 BEACON_MAIN("ZZiiiii", go)

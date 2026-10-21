@@ -16,9 +16,7 @@ if(NOT EXISTS "${BOF_PE_ROOT}/common/standalone.cpp")
         "BOF_PE_ROOT must point to a BOF-PE checkout containing common/standalone.cpp")
 endif()
 
-if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-    set(BOF_PE_LINK_SCRIPT "${BOF_PE_ROOT}/link.ld")
-else()
+if(NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
     message(FATAL_ERROR "fake-windows-popup-async currently supports x64 only")
 endif()
 
@@ -42,7 +40,9 @@ else()
     target_link_options(beacon PRIVATE -static)
 endif()
 
-add_executable(fake-windows-popup-async
+# OC2 runs a BOF-PE as a DLL that exports go (BOF-PE (.dll)). BOF_PE_DLL makes
+# BEACON_MAIN and BEACON_INIT no-ops, the CRT DLL startup initializes the CRT.
+add_library(fake-windows-popup-async SHARED
     src/credentials.cpp
     src/dimmer.cpp
     src/main.cpp
@@ -50,6 +50,9 @@ add_executable(fake-windows-popup-async
     src/prompt.cpp
     src/target.cpp
 )
+
+set_target_properties(fake-windows-popup-async PROPERTIES PREFIX "")
+target_compile_definitions(fake-windows-popup-async PRIVATE BOF_PE_DLL)
 
 target_include_directories(fake-windows-popup-async PRIVATE
     "${ASYNC_BEACON_DIR}"
@@ -90,12 +93,17 @@ else()
     # catch std::exception instead of taking down the C2's async thread
     target_compile_options(fake-windows-popup-async PRIVATE
         -Wall -Wextra -Wpedantic -fexceptions)
+    # -static links libgcc and libstdc++ into the DLL. The default MinGW DLL
+    # linker script is used, BOF-PE's link.ld is for the EXE model.
     target_link_options(fake-windows-popup-async PRIVATE
         -fexceptions
         -static
-        "-T${BOF_PE_LINK_SCRIPT}"
+        -static-libgcc
+        -static-libstdc++
+        -Wl,--image-base=0x180000000
+        -Wl,--subsystem,windows
         -Wl,--strip-all
     )
 endif()
 
-install(TARGETS fake-windows-popup-async DESTINATION .)
+install(TARGETS fake-windows-popup-async RUNTIME DESTINATION . LIBRARY DESTINATION . ARCHIVE EXCLUDE_FROM_ALL)

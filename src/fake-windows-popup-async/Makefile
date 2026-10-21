@@ -1,7 +1,7 @@
 BUILD_DIR := build-mingw
 TEST_BUILD_DIR := build-tests
 TOOLCHAIN := cmake/toolchains/mingw-x64.cmake
-PE := $(BUILD_DIR)/fake-windows-popup-async.exe
+PE := $(BUILD_DIR)/fake-windows-popup-async.dll
 # OC2 looks up an x64 BOF as <name>.x64.o beside the .s1.py script
 OC2_PE := fake-windows-popup-async.x64.o
 
