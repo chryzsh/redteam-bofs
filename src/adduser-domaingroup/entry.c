@@ -11,11 +11,19 @@ __declspec(naked) void ___chkstk_ms(void)
 #include <lm.h>
 #include "beacon.h"
 
-// NetAPI32 function declaration
+// NetAPI32 function declarations
 DECLSPEC_IMPORT NET_API_STATUS WINAPI NETAPI32$NetGroupAddUser(
     LPCWSTR servername,
     LPCWSTR groupname,
     LPCWSTR username
+);
+
+DECLSPEC_IMPORT NET_API_STATUS WINAPI NETAPI32$NetLocalGroupAddMembers(
+    LPCWSTR servername,
+    LPCWSTR groupname,
+    DWORD level,
+    LPBYTE buf,
+    DWORD totalentries
 );
 
 // Error code constants
@@ -45,6 +53,22 @@ DECLSPEC_IMPORT NET_API_STATUS WINAPI NETAPI32$NetGroupAddUser(
 
 #ifndef ERROR_ACCESS_DENIED
 #define ERROR_ACCESS_DENIED 5L
+#endif
+
+#ifndef ERROR_NO_SUCH_ALIAS
+#define ERROR_NO_SUCH_ALIAS 1376L
+#endif
+
+#ifndef ERROR_MEMBER_IN_ALIAS
+#define ERROR_MEMBER_IN_ALIAS 1378L
+#endif
+
+#ifndef ERROR_NO_SUCH_MEMBER
+#define ERROR_NO_SUCH_MEMBER 1387L
+#endif
+
+#ifndef ERROR_INVALID_MEMBER
+#define ERROR_INVALID_MEMBER 1388L
 #endif
 
 
@@ -78,7 +102,7 @@ const char* GetNetApiErrorMessage(NET_API_STATUS errorCode) {
         case NERR_UserNotFound:
             return "The user account could not be found.";
         case NERR_GroupNotFound:
-            return "The specified domain group does not exist (or is not a global/universal group).";
+            return "The specified group is not a global/universal group.";
         case NERR_SpeGroupOp:
             return "Operation not allowed on this special group.";
         case NERR_InvalidComputer:
@@ -92,12 +116,42 @@ const char* GetNetApiErrorMessage(NET_API_STATUS errorCode) {
 
 
 /**
+ * Maps NetLocalGroupAddMembers error codes to human-readable messages.
+ */
+const char* GetNetLocalGroupErrorMessage(NET_API_STATUS errorCode) {
+    switch (errorCode) {
+        case NERR_Success:
+            return "Success";
+        case ERROR_ACCESS_DENIED:
+            return "Access denied. Insufficient privileges to add user to group.";
+        case ERROR_MEMBER_IN_ALIAS:
+            return "The user is already a member of the specified group.";
+        case ERROR_NO_SUCH_MEMBER:
+        case NERR_UserNotFound:
+            return "The user account could not be found.";
+        case ERROR_NO_SUCH_ALIAS:
+        case NERR_GroupNotFound:
+            return "The group does not exist as a global, universal, domain-local, or builtin group.";
+        case ERROR_INVALID_MEMBER:
+            return "The specified member is invalid or cannot be added to this group.";
+        case NERR_InvalidComputer:
+            return "The target computer is invalid (must be a domain controller).";
+        case ERROR_INVALID_PARAMETER:
+            return "Invalid parameter.";
+        default:
+            return "An unknown error occurred.";
+    }
+}
+
+
+/**
  * BOF Entry Point: adduser-domaingroup
  *
- * Adds a domain user to a domain global or universal group via
- * NetGroupAddUser. Must target a domain controller for the user's domain.
- *
- * For domain-local groups, use adduser-localgroup against a DC instead.
+ * Adds a domain user to a domain group. Tries NetGroupAddUser first
+ * (global/universal groups). If that returns NERR_GroupNotFound, retries
+ * against the same server with NetLocalGroupAddMembers, which covers
+ * domain-local and Builtin groups. Must target a domain controller for
+ * the user's domain.
  *
  * Expected argument format (all wide strings):
  *   - groupname:    Domain group name (SAM account name, no DOMAIN\ prefix)
@@ -141,9 +195,45 @@ void go(char *args, int length) {
     if (status == NERR_Success) {
         BeaconPrintf(CALLBACK_OUTPUT, "[+] Success: User '%ls' added to group '%ls'.\n",
                      userName, groupName);
-    } else {
-        const char *errorMsg = GetNetApiErrorMessage(status);
-        BeaconPrintf(CALLBACK_ERROR, "[-] Failed to add user to group.\n");
-        BeaconPrintf(CALLBACK_ERROR, "[-] Error: %s (Code: %lu)\n", errorMsg, status);
+        BeaconPrintf(CALLBACK_OUTPUT, "[+] Added via NetGroupAddUser (global/universal group)\n");
+        return;
+    }
+
+    if (status != NERR_GroupNotFound) {
+        BeaconPrintf(CALLBACK_ERROR, "[-] Failed to add user to group (NetGroupAddUser).\n");
+        BeaconPrintf(CALLBACK_ERROR, "[-] Error: %s (Code: %lu)\n", GetNetApiErrorMessage(status), status);
+        return;
+    }
+
+    // NERR_GroupNotFound: not a global/universal group. Retry as a
+    // domain-local or Builtin group (an alias in SAM terms).
+    BeaconPrintf(CALLBACK_OUTPUT, "[*] Not a global/universal group (Code: %lu). Retrying with NetLocalGroupAddMembers...\n",
+                 status);
+
+    LOCALGROUP_MEMBERS_INFO_3 memberInfo;
+    memberInfo.lgrmi3_domainandname = userName;
+
+    NET_API_STATUS localStatus = NETAPI32$NetLocalGroupAddMembers(
+        targetComputer,
+        groupName,
+        3,  // Level 3 - LOCALGROUP_MEMBERS_INFO_3
+        (LPBYTE)&memberInfo,
+        1
+    );
+
+    if (localStatus == NERR_Success) {
+        BeaconPrintf(CALLBACK_OUTPUT, "[+] Success: User '%ls' added to group '%ls'.\n",
+                     userName, groupName);
+        BeaconPrintf(CALLBACK_OUTPUT, "[+] Added via NetLocalGroupAddMembers (domain-local/builtin group)\n");
+        return;
+    }
+
+    BeaconPrintf(CALLBACK_ERROR, "[-] Failed to add user to group (NetLocalGroupAddMembers).\n");
+    BeaconPrintf(CALLBACK_ERROR, "[-] Error: %s (Code: %lu)\n",
+                 GetNetLocalGroupErrorMessage(localStatus), localStatus);
+    if (localStatus == NERR_GroupNotFound || localStatus == ERROR_NO_SUCH_ALIAS) {
+        BeaconPrintf(CALLBACK_ERROR, "[-] Group '%ls' was not found as a global, universal, domain-local, or builtin group.\n",
+                     groupName);
+        BeaconPrintf(CALLBACK_ERROR, "[-] Check the group name. adduser-localgroup is the manual alternative for local-group targets.\n");
     }
 }

@@ -6,7 +6,7 @@ A collection of Beacon Object Files (BOFs) for post-exploitation operations. Inc
 
 | BOF | Description | Usage |
 |-----|-------------|-------|
-| **adduser-domaingroup** | Adds a user to a domain global/universal group via `NetGroupAddUser` (target a DC) | [Usage](docs/USAGE.md#adduser-domaingroup) |
+| **adduser-domaingroup** | Adds a user to a domain group via `NetGroupAddUser`, falling back to `NetLocalGroupAddMembers` for domain-local/builtin groups (target a DC) | [Usage](docs/USAGE.md#adduser-domaingroup) |
 | **adduser-localgroup** | Adds a user to a local group on a Windows computer | [Usage](docs/USAGE.md#adduser-localgroup) |
 | **bkread** | Reads a file with `SeBackupPrivilege` and backup semantics, without changing ACLs | [Usage](docs/USAGE.md#bkread) |
 | **checkaccess** | Probes read access for a directory path and subfolders (depth-1 or recursive) | [Usage](docs/USAGE.md#checkaccess) |
@@ -28,7 +28,7 @@ A collection of Beacon Object Files (BOFs) for post-exploitation operations. Inc
 | **listpipes** | Lists named pipes for IPC reconnaissance | [Usage](docs/USAGE.md#listpipes) |
 | **lsfiles** | Recursive file/directory listing with wildcards, date/size filters | [Usage](docs/USAGE.md#lsfiles) |
 | **nslookup-file** | Resolves a file of hostnames with parallel DNS queries | [Usage](docs/USAGE.md#nslookup-file) |
-| **removeuser-domaingroup** | Removes a user from a domain global/universal group via `NetGroupDelUser` (target a DC) | [Usage](docs/USAGE.md#removeuser-domaingroup) |
+| **removeuser-domaingroup** | Removes a user from a domain group via `NetGroupDelUser`, falling back to `NetLocalGroupDelMembers` for domain-local/builtin groups (target a DC) | [Usage](docs/USAGE.md#removeuser-domaingroup) |
 | **removeuser-localgroup** | Removes a user from a local group on a Windows computer (or a domain-local group when targeted at a DC) | [Usage](docs/USAGE.md#removeuser-localgroup) |
 | **sccm-wmi** | Recovers SCCM Network Access Account credentials from live WMI policy as `SYSTEM` (CRED-3) | [Usage](docs/USAGE.md#sccm-wmi) |
 | **sccm-disk** | Recovers SCCM Network Access Account credentials from on-disk `OBJECTS.DATA` as `SYSTEM` (CRED-4) | [Usage](docs/USAGE.md#sccm-disk) |
