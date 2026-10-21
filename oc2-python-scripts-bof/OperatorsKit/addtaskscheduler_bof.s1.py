@@ -19,6 +19,7 @@ _SCRIPT_BASE_PATH = os.path.dirname(os.path.abspath(__file__))
 # comes in. This also collapses `""` / `''` placeholders to empty strings, which
 # the legacy CNA syntax relied on.
 TRIGGER_TYPES = {"onetime", "daily", "logon", "startup", "lock", "unlock"}
+CONTEXT_TYPES = ["current", "current+", "creds", "creds+", "system"]
 WINDOWS_PATH_RE = re.compile(r"^(?:[A-Za-z]:[\\/]|\\\\|%[^%]+%[\\/]|\.{1,2}[\\/])")
 TASK_TIME_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$")
 TASK_DELAY_RE = re.compile(r"^P(?:\d+D)?(?:T(?:\d+H)?(?:\d+M)?(?:\d+S)?)?$", re.IGNORECASE)
@@ -37,6 +38,9 @@ class ParsedArguments:
     delay: str = ""
     user_id: str = ""
     repeat_task: str = ""
+    context_type: str = "current"
+    user_name: str = ""
+    user_password: str = ""
 
 
 class AddTaskSchedulerBOF(BaseBOFTask):
@@ -103,11 +107,33 @@ class AddTaskSchedulerBOF(BaseBOFTask):
             default=None,
             help='One-time trigger repetition interval, for example "PT2H".',
         )
+        self.parser.add_argument(
+            "--context",
+            choices=CONTEXT_TYPES,
+            default="current",
+            help=(
+                "Account the task runs as. current: current user, only while logged on. "
+                "current+: same, highest privileges. creds/creds+: --username/--password, "
+                "whether logged on or not (+ = highest privileges). system: SYSTEM. Default: current."
+            ),
+        )
+        self.parser.add_argument(
+            "--username",
+            default=None,
+            help="Account for --context creds/creds+, e.g. example.local\\john.",
+        )
+        self.parser.add_argument(
+            "--password",
+            default=None,
+            help="Plaintext password for --username.",
+        )
 
         self.parser.epilog = (
             "Recommended OC2 syntax:\n"
-            "  addtaskscheduler <taskName> <programPath> <triggerType> [trigger args] [--host HOST] [--program-args ARGS]\n\n"
+            "  addtaskscheduler <taskName> <programPath> <triggerType> [trigger args] [--host HOST] [--program-args ARGS] [--context CONTEXT]\n\n"
             "Examples:\n"
+            "  system:   addtaskscheduler Updater C:\\Windows\\System32\\cmd.exe startup --program-args \"/c calc.exe\" --delay PT5M --context system\n"
+            "  creds:    addtaskscheduler Updater C:\\Data\\app.exe logon --context creds --username example.local\\john --password Welcome01\n"
             "  onetime:  addtaskscheduler TestTask C:\\Windows\\System32\\cmd.exe onetime --program-args \"/c calc.exe\" --start-time 2023-03-24T12:08:00 --repeat-task PT2H\n"
             "  daily:    addtaskscheduler TestTask C:\\Windows\\System32\\cmd.exe daily --start-time 2023-03-24T12:08:00 --expire-time 2023-03-28T12:14:00 --days-interval 1 --delay PT2H\n"
             "  logon:    addtaskscheduler NewTask C:\\Users\\Public\\legit.exe logon --host DB01.example.local --user-id Testdomain\\Administrator\n"
@@ -136,39 +162,54 @@ class AddTaskSchedulerBOF(BaseBOFTask):
         if parsed_arguments.days_interval < 0:
             raise TaskInvalidArgumentsException("days-interval must be zero or a positive integer.")
 
+        if parsed_arguments.context_type in {"creds", "creds+"}:
+            if not parsed_arguments.user_name or not parsed_arguments.user_password:
+                raise TaskInvalidArgumentsException(
+                    f"--context {parsed_arguments.context_type} requires --username and --password."
+                )
+        elif parsed_arguments.user_name or parsed_arguments.user_password:
+            raise TaskInvalidArgumentsException(
+                "--username/--password only apply to --context creds or creds+."
+            )
+
     def run(self, arguments: List[str]):
         parsed_arguments = self._parse_arguments(arguments)
         target = parsed_arguments.host_name if parsed_arguments.host_name else "local system"
 
         self.append_response(
             f"[*] Creating scheduled task '{parsed_arguments.task_name}' "
-            f"on {target} (trigger: {parsed_arguments.trigger_type})\n"
+            f"on {target} (trigger: {parsed_arguments.trigger_type}, context: {parsed_arguments.context_type})\n"
         )
         super().run(arguments)
 
     def _encode_arguments_bof(self, arguments: List[str]) -> List[Tuple[BOFArgumentEncoding, str]]:
         parsed_arguments = self._parse_arguments(arguments)
 
-        # Cobalt Strike bof_pack formats:
-        # onetime: ZZZZzZZ
-        # daily:   ZZZZzZZiZ
-        # logon:   ZZZZzZ
-        # startup: ZZZZzZ
-        # lock:    ZZZZzZZ
-        # unlock:  ZZZZzZZ
+        # Cobalt Strike bof_pack formats (upstream added contextType and userName/userPassword):
+        # onetime: ZZzZZzZZZZ
+        # daily:   ZZzZZzZZiZZZ
+        # logon:   ZZzZZzZZZ
+        # startup: ZZzZZzZZZ
+        # lock:    ZZzZZzZZZZ
+        # unlock:  ZZzZZzZZZZ
         base_args = [
             (BOFArgumentEncoding.WSTR, parsed_arguments.task_name),
             (BOFArgumentEncoding.WSTR, parsed_arguments.host_name),
+            (BOFArgumentEncoding.STR, parsed_arguments.context_type),
             (BOFArgumentEncoding.WSTR, parsed_arguments.program_path),
             (BOFArgumentEncoding.WSTR, parsed_arguments.program_arguments),
             (BOFArgumentEncoding.STR, parsed_arguments.trigger_type),
+        ]
+        cred_args = [
+            (BOFArgumentEncoding.WSTR, parsed_arguments.user_name),
+            (BOFArgumentEncoding.WSTR, parsed_arguments.user_password),
         ]
 
         if parsed_arguments.trigger_type == "onetime":
             return base_args + [
                 (BOFArgumentEncoding.WSTR, parsed_arguments.start_time),
                 (BOFArgumentEncoding.WSTR, parsed_arguments.repeat_task),
-            ]
+            ] + cred_args
 
         if parsed_arguments.trigger_type == "daily":
             return base_args + [
@@ -176,25 +217,25 @@ class AddTaskSchedulerBOF(BaseBOFTask):
                 (BOFArgumentEncoding.WSTR, parsed_arguments.expire_time),
                 (BOFArgumentEncoding.INT, parsed_arguments.days_interval),
                 (BOFArgumentEncoding.WSTR, parsed_arguments.delay),
-            ]
+            ] + cred_args
 
         if parsed_arguments.trigger_type == "logon":
             return base_args + [
                 (BOFArgumentEncoding.WSTR, parsed_arguments.user_id),
-            ]
+            ] + cred_args
 
         if parsed_arguments.trigger_type == "startup":
             return base_args + [
                 (BOFArgumentEncoding.WSTR, parsed_arguments.delay),
-            ]
+            ] + cred_args
 
         if parsed_arguments.trigger_type in {"lock", "unlock"}:
             return base_args + [
                 (BOFArgumentEncoding.WSTR, parsed_arguments.user_id),
                 (BOFArgumentEncoding.WSTR, parsed_arguments.delay),
-            ]
+            ] + cred_args
 
-        return base_args
+        return base_args + cred_args
 
     def _parse_arguments(self, arguments: List[str]) -> ParsedArguments:
         parser_arguments = self.parser.parse_args(arguments)
@@ -203,7 +244,7 @@ class AddTaskSchedulerBOF(BaseBOFTask):
         parser_arguments.arguments = raw_tokens
         for attr in (
             "host", "program_args", "start_time", "expire_time",
-            "delay", "user_id", "repeat_task",
+            "delay", "user_id", "repeat_task", "username", "password",
         ):
             value = getattr(parser_arguments, attr, None)
             if isinstance(value, str):
@@ -283,6 +324,9 @@ class AddTaskSchedulerBOF(BaseBOFTask):
             program_path=program_path,
             program_arguments=program_arguments,
             trigger_type=trigger_type,
+            context_type=parser_arguments.context,
+            user_name=parser_arguments.username or "",
+            user_password=parser_arguments.password or "",
             **trigger_values,
         )
 
