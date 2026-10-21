@@ -4,6 +4,18 @@ from outflank_stage1.task.base_bof_task import BaseBOFTask
 from outflank_stage1.task.enums import BOFArgumentEncoding
 
 
+def _unc(computername: str) -> str:
+    """
+    Strip quotes and prepend a leading \\\\ to the server name if it is
+    missing, so operators can type `dc01.corp.local` instead of
+    `\\\\dc01.corp.local`. Empty and "." (local computer) pass through.
+    """
+    name = (computername or "").strip('"').strip("'")
+    if name and name != "." and not name.startswith("\\\\"):
+        name = "\\\\" + name
+    return name
+
+
 def _strip_domain_prefix(username: str) -> Tuple[str, str]:
     """
     NetGroupAddUser only accepts the bare SAM account name. Strip
@@ -31,7 +43,7 @@ class AdduserDomaingroupBOF(BaseBOFTask):
         )
 
         self.parser.description = (
-            "Add a domain user to a global or universal domain group. Must target a DC."
+            "Add a domain user to a domain group (global, universal, domain-local, or builtin). Must target a DC."
         )
 
         self.parser.add_argument(
@@ -48,20 +60,25 @@ class AdduserDomaingroupBOF(BaseBOFTask):
             "computername",
             nargs="?",
             default="",
-            help="DC name/FQDN (e.g., '\\\\dc01.corp.local'). Omit only when running on the DC itself.",
+            help="DC name/FQDN (e.g., 'dc01.corp.local'). The leading \\\\ is optional. Omit only when running on the DC itself.",
         )
 
         self.parser.epilog = (
-            "adduser-domaingroup wraps NetGroupAddUser. It only operates on global/universal\n"
-            "AD groups, and the target must be a domain controller for the user's domain.\n"
-            "For domain-local groups, use adduser-localgroup against a DC instead.\n\n"
+            "adduser-domaingroup tries NetGroupAddUser first (global/universal groups).\n"
+            "If the group is not found, it retries on the same DC with NetLocalGroupAddMembers,\n"
+            "which covers domain-local and builtin groups (Administrators, Account Operators,\n"
+            "Remote Desktop Users, DL-* groups). The output says which call succeeded.\n"
+            "The target must be a domain controller for the user's domain. The leading \\\\\n"
+            "on the DC name is optional.\n\n"
             "Example usage:\n"
             "  - Add user to a global group on the DC:\n"
-            "    adduser-domaingroup 'GG-Sysadmins' alice \\\\dc01.corp.local\n\n"
+            "    adduser-domaingroup 'GG-Sysadmins' alice dc01.corp.local\n\n"
+            "  - Add user to a builtin or domain-local group (falls back automatically):\n"
+            "    adduser-domaingroup 'Account Operators' alice dc01.corp.local\n\n"
             "  - DOMAIN\\ prefix is auto-stripped:\n"
-            "    adduser-domaingroup 'GG-Sysadmins' CORP\\alice \\\\dc01.corp.local\n\n"
+            "    adduser-domaingroup 'GG-Sysadmins' CORP\\alice dc01.corp.local\n\n"
             "  - Multi-word group names must be quoted:\n"
-            "    adduser-domaingroup 'Domain Admins' alice \\\\dc01.corp.local"
+            "    adduser-domaingroup 'Domain Admins' alice dc01.corp.local"
         )
 
     def _encode_arguments_bof(
@@ -73,7 +90,7 @@ class AdduserDomaingroupBOF(BaseBOFTask):
         return [
             (BOFArgumentEncoding.WSTR, parser_arguments.groupname.strip('"').strip("'")),
             (BOFArgumentEncoding.WSTR, sam_username),
-            (BOFArgumentEncoding.WSTR, parser_arguments.computername.strip('"').strip("'")),
+            (BOFArgumentEncoding.WSTR, _unc(parser_arguments.computername)),
         ]
 
     def run(self, arguments: List[str]):
@@ -84,9 +101,9 @@ class AdduserDomaingroupBOF(BaseBOFTask):
             self.append_response(notice)
 
         groupname = parser_arguments.groupname.strip('"').strip("'")
-        computername = parser_arguments.computername.strip('"').strip("'") if parser_arguments.computername else ""
+        computername = _unc(parser_arguments.computername)
 
-        if computername and computername not in ["", "."]:
+        if computername and computername != ".":
             target_desc = f"on DC {computername}"
         else:
             target_desc = "on local computer (must be a DC)"

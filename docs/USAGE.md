@@ -50,11 +50,11 @@ This document provides usage information for all BOFs in the repository. Each se
 
 ## adduser-domaingroup
 
-Add a domain user to a domain **global or universal** group via `NetGroupAddUser`. The target must be a domain controller for the user's domain. For domain-local groups, use `adduser-localgroup --computer \\<dc>` instead.
+Add a domain user to a domain group. The BOF tries `NetGroupAddUser` first, which covers **global and universal** groups. If that returns `NERR_GroupNotFound` (2220), it retries on the same DC with `NetLocalGroupAddMembers`, which covers **domain-local and builtin** groups (Administrators, Account Operators, Remote Desktop Users, DL-* groups). The output says which call succeeded. The target must be a domain controller for the user's domain. If both calls fail to find the group, the BOF says so; `adduser-localgroup` is the manual alternative.
 
 ### Syntax
 ```
-adduser-domaingroup <groupname> <username> [--computer <computername>]
+adduser-domaingroup <groupname> <username> [computername]
 ```
 
 ### Arguments
@@ -62,18 +62,21 @@ adduser-domaingroup <groupname> <username> [--computer <computername>]
 |----------|----------|-------------|
 | `groupname` | Yes | Domain group name (e.g., 'GG-Sysadmins') |
 | `username` | Yes | User to add (SAM account name, e.g., 'alice'). `DOMAIN\user` and `user@domain` forms are auto-stripped by the OC2 wrapper. |
-| `--computer` | No | DC name/FQDN (e.g., `\\dc01.corp.local`). Omit only when running on the DC itself. |
+| `computername` | No | DC name/FQDN (e.g., `dc01.corp.local`). The leading `\\` is optional. Omit only when running on the DC itself. |
 
 ### Examples
 ```bash
 # Add user to a global group on the DC
-adduser-domaingroup 'GG-Sysadmins' alice --computer \\dc01.corp.local
+adduser-domaingroup 'GG-Sysadmins' alice dc01.corp.local
+
+# Add user to a builtin or domain-local group (falls back to NetLocalGroupAddMembers)
+adduser-domaingroup 'Account Operators' alice dc01.corp.local
 
 # DOMAIN\ prefix is auto-stripped
-adduser-domaingroup 'GG-Sysadmins' CORP\alice --computer \\dc01.corp.local
+adduser-domaingroup 'GG-Sysadmins' CORP\alice dc01.corp.local
 
 # UPN suffix is auto-stripped
-adduser-domaingroup 'GG-Sysadmins' alice@corp.local --computer \\dc01.corp.local
+adduser-domaingroup 'GG-Sysadmins' alice@corp.local dc01.corp.local
 ```
 
 ---
@@ -84,7 +87,7 @@ Add a user (local or domain) to a local group on a Windows computer.
 
 ### Syntax
 ```
-adduser-localgroup <groupname> <username> [--computer <computername>]
+adduser-localgroup <groupname> <username> [computername]
 ```
 
 ### Arguments
@@ -92,7 +95,7 @@ adduser-localgroup <groupname> <username> [--computer <computername>]
 |----------|----------|-------------|
 | `groupname` | Yes | Local group name (e.g., 'Administrators', 'Remote Desktop Users') |
 | `username` | Yes | User to add - can be local (e.g., 'john') or domain (e.g., 'DOMAIN\john') |
-| `--computer` | No | Target computer name (default: local computer) |
+| `computername` | No | Target computer name (default: local computer). The leading `\\` is optional. |
 
 ### Examples
 ```bash
@@ -103,10 +106,10 @@ adduser-localgroup Administrators john
 adduser-localgroup Administrators DOMAIN\john
 
 # Add user on remote computer
-adduser-localgroup 'Remote Desktop Users' john --computer \\COMPUTER01
+adduser-localgroup 'Remote Desktop Users' john COMPUTER01
 
 # Add domain user to remote computer's local group
-adduser-localgroup Administrators CORP\alice --computer \\SERVER01
+adduser-localgroup Administrators CORP\alice SERVER01
 ```
 
 ---
@@ -1054,7 +1057,7 @@ nslookup-file /tmp/computers.txt
 
 ## removeuser-domaingroup
 
-Remove a domain user from a domain **global or universal** group via `NetGroupDelUser`. The target must be a domain controller for the user's domain. For domain-local groups, use `removeuser-localgroup --computer \\<dc>` instead.
+Remove a domain user from a domain group. The BOF tries `NetGroupDelUser` first, which covers **global and universal** groups. If that returns `NERR_GroupNotFound` (2220), it retries on the same DC with `NetLocalGroupDelMembers`, which covers **domain-local and builtin** groups (Administrators, Account Operators, Remote Desktop Users, DL-* groups). The output says which call succeeded. The target must be a domain controller for the user's domain. If both calls fail to find the group, the BOF says so; `removeuser-localgroup` is the manual alternative.
 
 ### Syntax
 ```
@@ -1066,15 +1069,18 @@ removeuser-domaingroup <groupname> <username> [--computer <computername>]
 |----------|----------|-------------|
 | `groupname` | Yes | Domain group name (e.g., 'Domain Admins') |
 | `username` | Yes | User to remove (SAM account name, e.g., 'jsmith'). `DOMAIN\user` and `user@domain` forms are auto-stripped by the OC2 wrapper. |
-| `--computer` | No | DC name/FQDN (e.g., `\\dc01.corp.local`). Omit only when running on the DC itself. |
+| `--computer` | No | DC name/FQDN (e.g., `dc01.corp.local`). The leading `\\` is optional. Omit only when running on the DC itself. |
 
 ### Examples
 ```bash
 # Remove user from a global/universal group on the DC
-removeuser-domaingroup 'Domain Admins' jsmith --computer \\dc01.corp.local
+removeuser-domaingroup 'Domain Admins' jsmith --computer dc01.corp.local
+
+# Remove user from a builtin or domain-local group (falls back to NetLocalGroupDelMembers)
+removeuser-domaingroup 'Account Operators' jsmith --computer dc01.corp.local
 
 # DOMAIN\ prefix is auto-stripped
-removeuser-domaingroup 'GG-Sysadmins' CORP\alice --computer \\dc01.corp.local
+removeuser-domaingroup 'GG-Sysadmins' CORP\alice --computer dc01.corp.local
 ```
 
 ---
@@ -1091,9 +1097,9 @@ removeuser-localgroup <groupname> <username> [--computer <computername>]
 ### Arguments
 | Argument | Required | Description |
 |----------|----------|-------------|
-| `groupname` | Yes | Local or domain-local group name (e.g., 'Administrators', 'Domain Admins') |
+| `groupname` | Yes | Local or domain-local group name (e.g., 'Administrators', 'Account Operators') |
 | `username` | Yes | User to remove - can be local (e.g., 'john') or domain (e.g., 'DOMAIN\john') |
-| `--computer` | No | Target computer name (default: local computer). Point at a DC to operate on a domain-local group. |
+| `--computer` | No | Target computer name (default: local computer). The leading `\\` is optional. Point at a DC to operate on a domain-local group. |
 
 ### Examples
 ```bash
@@ -1104,10 +1110,10 @@ removeuser-localgroup Administrators john
 removeuser-localgroup Administrators DOMAIN\john
 
 # Remove user on remote computer
-removeuser-localgroup 'Remote Desktop Users' john --computer \\COMPUTER01
+removeuser-localgroup 'Remote Desktop Users' john --computer COMPUTER01
 
 # Remove domain user from a domain-local group on the DC
-removeuser-localgroup 'Domain Admins' CORP\alice --computer \\dc01.corp.local
+removeuser-localgroup 'Account Operators' CORP\alice --computer dc01.corp.local
 ```
 
 ---

@@ -4,6 +4,18 @@ from outflank_stage1.task.base_bof_task import BaseBOFTask
 from outflank_stage1.task.enums import BOFArgumentEncoding
 
 
+def _unc(computername: str) -> str:
+    """
+    Strip quotes and prepend a leading \\\\ to the server name if it is
+    missing, so operators can type `dc01.corp.local` instead of
+    `\\\\dc01.corp.local`. Empty and "." (local computer) pass through.
+    """
+    name = (computername or "").strip('"').strip("'")
+    if name and name != "." and not name.startswith("\\\\"):
+        name = "\\\\" + name
+    return name
+
+
 class AdduserLocalgroupBOF(BaseBOFTask):
     def __init__(self):
         super().__init__(
@@ -30,23 +42,24 @@ class AdduserLocalgroupBOF(BaseBOFTask):
             "computername",
             nargs="?",
             default="",
-            help="Target computer name (default: local computer). Omit for local.",
+            help="Target computer name (e.g., 'COMPUTER01'; default: local computer). The leading \\\\ is optional. Omit for local.",
         )
 
         self.parser.epilog = (
             "adduser-localgroup adds a user to a local group on a Windows computer.\n"
-            "The user can be either a local user or a domain user, but the group must be local.\n\n"
+            "The user can be either a local user or a domain user, but the group must be local.\n"
+            "The leading \\\\ on the computer name is optional.\n\n"
             "Example usage:\n"
             "  - Add local user to Administrators group:\n"
             "    adduser-localgroup Administrators john\n\n"
             "  - Add domain user to local group:\n"
             "    adduser-localgroup Administrators DOMAIN\\john\n\n"
             "  - Add user on remote computer:\n"
-            "    adduser-localgroup 'Remote Desktop Users' john \\\\COMPUTER01\n\n"
+            "    adduser-localgroup 'Remote Desktop Users' john COMPUTER01\n\n"
             "  - Add domain user to remote computer's local group:\n"
-            "    adduser-localgroup Administrators CORP\\alice \\\\SERVER01\n\n"
+            "    adduser-localgroup Administrators CORP\\alice SERVER01\n\n"
             "  - Multi-word group names must be quoted:\n"
-            "    adduser-localgroup 'Remote Desktop Users' john \\\\COMPUTER01"
+            "    adduser-localgroup 'Remote Desktop Users' john COMPUTER01"
         )
 
     def _encode_arguments_bof(
@@ -59,7 +72,7 @@ class AdduserLocalgroupBOF(BaseBOFTask):
         return [
             (BOFArgumentEncoding.WSTR, parser_arguments.groupname.strip('"').strip("'")),
             (BOFArgumentEncoding.WSTR, parser_arguments.username.strip('"').strip("'")),
-            (BOFArgumentEncoding.WSTR, parser_arguments.computername.strip('"').strip("'")),
+            (BOFArgumentEncoding.WSTR, _unc(parser_arguments.computername)),
         ]
 
     def run(self, arguments: List[str]):
@@ -67,9 +80,9 @@ class AdduserLocalgroupBOF(BaseBOFTask):
 
         groupname = parser_arguments.groupname.strip('"').strip("'")
         username = parser_arguments.username.strip('"').strip("'")
-        computername = parser_arguments.computername.strip('"').strip("'") if parser_arguments.computername else ""
+        computername = _unc(parser_arguments.computername)
 
-        if computername and computername not in ["", "."]:
+        if computername and computername != ".":
             target_desc = f"on {computername}"
         else:
             target_desc = "on local computer"
