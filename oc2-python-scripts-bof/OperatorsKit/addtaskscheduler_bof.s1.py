@@ -1,7 +1,7 @@
 import os
 import re
 from dataclasses import dataclass
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 from outflank_stage1.implant.enums import ImplantArch
 from outflank_stage1.task.base_bof_task import BaseBOFTask
@@ -20,6 +20,16 @@ _SCRIPT_BASE_PATH = os.path.dirname(os.path.abspath(__file__))
 # the legacy CNA syntax relied on.
 TRIGGER_TYPES = {"onetime", "daily", "logon", "startup", "lock", "unlock"}
 CONTEXT_TYPES = ["current", "current+", "creds", "creds+", "system"]
+
+# 0x80070534 = ERROR_NONE_MAPPED. Seen with --context current from a token Task
+# Scheduler cannot map to an account name, such as an Entra ID (S-1-12-1-...) user.
+NONE_MAPPED_ERROR = "error code: 80070534"
+NONE_MAPPED_HINT = (
+    "\n[!] 0x80070534 (ERROR_NONE_MAPPED): Task Scheduler could not map the task's account "
+    "to a name. This happens with --context current/current+ when the current token is an "
+    "Entra ID user (SID S-1-12-1-...) or another account it cannot resolve. If you are an "
+    "admin, retry with --context system.\n"
+)
 WINDOWS_PATH_RE = re.compile(r"^(?:[A-Za-z]:[\\/]|\\\\|%[^%]+%[\\/]|\.{1,2}[\\/])")
 TASK_TIME_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$")
 TASK_DELAY_RE = re.compile(r"^P(?:\d+D)?(?:T(?:\d+H)?(?:\d+M)?(?:\d+S)?)?$", re.IGNORECASE)
@@ -181,6 +191,11 @@ class AddTaskSchedulerBOF(BaseBOFTask):
             f"on {target} (trigger: {parsed_arguments.trigger_type}, context: {parsed_arguments.context_type})\n"
         )
         super().run(arguments)
+
+    def rewrite_response(self, response: Optional[str]) -> Optional[str]:
+        if response and NONE_MAPPED_ERROR in response.lower() and NONE_MAPPED_HINT not in response:
+            return response + NONE_MAPPED_HINT
+        return response
 
     def _encode_arguments_bof(self, arguments: List[str]) -> List[Tuple[BOFArgumentEncoding, str]]:
         parsed_arguments = self._parse_arguments(arguments)
